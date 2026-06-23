@@ -1,0 +1,118 @@
+# =====================================================================
+# Atlas Learning — stack PRODUCTION auto-suffisante (1 VM).
+# Entrée TLS Caddy → frontend Next.js + backend FastAPI ; auth = Keycloak (TOTP) ;
+# 2 Postgres (app = données pédagogiques GCC ; kc = Keycloak).
+#
+#   cp .env.prod.example .env   (puis renseigner secrets/domaines)
+#   docker compose up -d --build
+#
+# Variables : voir .env.prod.example. Le backend migre (alembic) et provisionne au boot.
+# =====================================================================
+name: atlas
+
+services:
+  app-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: atlas
+      POSTGRES_USER: ${APP_DB_USER:-atlas}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?set in .env}
+    volumes:
+      - app_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER:-atlas} -d atlas"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  kc-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?set in .env}
+    volumes:
+      - kc_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://kc-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set in .env}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?set in .env}
+      # Hostname public (issuer cohérent). Caddy termine le TLS → proxy en clair.
+      KC_HOSTNAME: https://${AUTH_DOMAIN}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      kc-db:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/prod/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      ATLAS_ENV: prod
+      AUTH_SECRET: ${AUTH_SECRET:?set in .env}
+      DATABASE_URL: postgresql+psycopg://${APP_DB_USER:-atlas}:${APP_DB_PASSWORD}@app-db:5432/atlas
+      WEB_BASE_URL: https://${APP_DOMAIN}
+      OIDC_REDIRECT_BASE: https://${APP_DOMAIN}
+      # Auth = Keycloak via OIDC générique (TOTP côté IdP).
+      OIDC_GENERIC_CLIENT_ID: ${OIDC_GENERIC_CLIENT_ID:-atlas-web}
+      OIDC_GENERIC_CLIENT_SECRET: ${OIDC_GENERIC_CLIENT_SECRET:?set in .env}
+      OIDC_GENERIC_ISSUER: https://${AUTH_DOMAIN}/realms/atlas
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      POSTMARK_TOKEN: ${POSTMARK_TOKEN:-}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@${APP_DOMAIN}}
+      PROVISION_ON_BOOT: ${PROVISION_ON_BOOT:-1}
+    depends_on:
+      app-db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../../web
+      dockerfile: ../deploy/prod/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set in .env}
+      AUTH_DOMAIN: ${AUTH_DOMAIN:?set in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - keycloak
+
+volumes:
+  app_db:
+  kc_db:
+  caddy_data:
+  caddy_config:

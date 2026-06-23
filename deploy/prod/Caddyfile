@@ -1,0 +1,24 @@
+# Caddy — reverse proxy + TLS automatique (Let's Encrypt) pour la stack Atlas.
+# Domaines fournis par l'environnement (.env) : APP_DOMAIN (app), AUTH_DOMAIN (Keycloak).
+#
+# App : front Next.js à la racine, backend FastAPI sous /api/* (préfixe retiré → même origine).
+# Auth : Keycloak sur son propre sous-domaine (issuer cohérent navigateur ⇄ backend).
+
+{$APP_DOMAIN} {
+	encode gzip
+
+	# /api/* → backend (handle_path RETIRE le préfixe /api : le backend voit /auth/providers, etc.)
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Tout le reste → frontend Next.js.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+{$AUTH_DOMAIN} {
+	encode gzip
+	reverse_proxy keycloak:8080
+}

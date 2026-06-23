@@ -62,10 +62,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export type LoginResult =
-  | { token: string; user_id: string }
-  | { mfa_setup_required: true; setup_token: string };
-
 export interface Integration {
   organization: {
     id: string; name: string; domain: string | null;
@@ -102,26 +98,6 @@ export interface Guardian {
 }
 
 export const api = {
-  login: (email: string, password: string, mfa_code?: string) =>
-    request<LoginResult>("/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password, mfa_code: mfa_code || null }),
-    }),
-
-  // Enrôlement MFA (1er login admin/enseignant) : génère le secret TOTP + URI otpauth.
-  mfaEnroll: (setupToken: string) =>
-    request<{ secret: string; otpauth_uri: string }>("/mfa/enroll", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${setupToken}` },
-    }),
-
-  mfaConfirm: (setupToken: string, code: string) =>
-    request<{ token: string; user_id: string }>("/mfa/enroll/confirm", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${setupToken}` },
-      body: JSON.stringify({ code }),
-    }),
-
   // Providers SSO activés côté serveur (pour afficher les bons boutons).
   authProviders: () => request<{ providers: string[] }>("/auth/providers"),
 

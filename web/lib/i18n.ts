@@ -31,6 +31,10 @@ export const DICT = {
   "login.mfa.required": { en: "Enter your MFA code to continue.", ar: "أدخل رمز المصادقة للمتابعة." },
   "login.demo": { en: "Demo accounts", ar: "حسابات تجريبية" },
   "login.parent": { en: "Parent? Get a login link →", ar: "ولي أمر؟ احصل على رابط دخول ←" },
+  "login.noprovider": {
+    en: "No sign-in method is configured yet. Contact your administrator.",
+    ar: "لا توجد طريقة دخول مهيّأة بعد. تواصل مع المسؤول.",
+  },
 
   // — Onboarding (entrée IT admin) —
   "onboarding.title": { en: "Set up your school", ar: "إعداد مدرستك" },

@@ -119,8 +119,8 @@ resource "oci_core_instance" "atlas" {
   shape               = "VM.Standard.A1.Flex"
 
   shape_config {
-    ocpus         = var.instance_ocpus       # 4 = plafond Always Free
-    memory_in_gbs = var.instance_memory_gbs  # 24 = plafond Always Free
+    ocpus         = var.instance_ocpus       # 2 = plafond Always Free (depuis ~15/06/2026)
+    memory_in_gbs = var.instance_memory_gbs  # 12 = plafond Always Free (depuis ~15/06/2026)
   }
 
   create_vnic_details {

@@ -1,0 +1,8 @@
+# Atlas — sauvegarde quotidienne des 2 Postgres (02:30 UTC).
+# Installer sur la VM :
+#   crontab -e
+# puis coller la ligne ci-dessous en adaptant le chemin absolu du bundle.
+# (Pour l'upload off-box, exporter BACKUP_OS_BUCKET / BACKUP_OS_NAMESPACE dans
+#  un fichier d'env source par le cron, ou les mettre dans .env de la VM.)
+
+30 2 * * * cd /home/ubuntu/04_code/deploy/prod && /bin/bash ./backup.sh >> ./backups/backup.log 2>&1

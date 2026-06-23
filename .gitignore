@@ -5,6 +5,17 @@ __pycache__/
 .env
 deploy/SECRETS.local.txt
 
+# Prod runtime (secrets injectés / dumps) — JAMAIS versionnés
+deploy/prod/keycloak/import/
+deploy/prod/backups/
+
+# Terraform (état + secrets API) — JAMAIS versionnés
+deploy/infra/**/.terraform/
+deploy/infra/**/*.tfstate
+deploy/infra/**/*.tfstate.*
+deploy/infra/**/terraform.tfvars
+deploy/infra/**/.terraform.lock.hcl
+
 # Frontend (Next.js)
 web/node_modules/
 web/.next/

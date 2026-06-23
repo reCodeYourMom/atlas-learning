@@ -25,6 +25,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    mem_limit: 1g
+    cpus: 1.0
 
   kc-db:
     image: postgres:16-alpine
@@ -40,6 +42,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+    mem_limit: 512m
+    cpus: 0.5
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
@@ -57,11 +61,17 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
+      # Cap heap JVM pour tenir large sur l'A1 Always Free.
+      JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx768m"
     volumes:
-      - ./keycloak:/opt/keycloak/data/import:ro
+      # Realm runtime (secret OIDC injecté par deploy.sh) — JAMAIS versionné.
+      # Généré dans ./keycloak/import/ depuis ./keycloak/atlas-realm.template.json
+      - ./keycloak/import:/opt/keycloak/data/import:ro
     depends_on:
       kc-db:
         condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.0
 
   backend:
     build:
@@ -85,6 +95,8 @@ services:
     depends_on:
       app-db:
         condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.0
 
   frontend:
     build:
@@ -93,6 +105,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    mem_limit: 512m
+    cpus: 0.5
 
   caddy:
     image: caddy:2-alpine

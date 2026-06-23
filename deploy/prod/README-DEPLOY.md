@@ -14,16 +14,45 @@ app-db (Postgres, données pédagogiques)   kc-db (Postgres Keycloak)
 
 ---
 
+## 0. Prérequis (à faire par toi — identité + domaine)
+
+Deux choses ne peuvent venir que de toi :
+
+1. **Compte OCI** (carte bancaire + identité requises à l'inscription, même pour l'Always Free).
+   ⚠️ **Choisis la home region = UAE (`me-dubai-1` ou `me-abudhabi-1`) à la création : elle est
+   IRRÉVERSIBLE, et l'Always Free n'existe que dans la home region.** Mauvais choix = plus de free en EAU.
+2. **Un domaine** (2 sous-domaines : `app.` + `auth.`). Pas encore de domaine ? Démarre en
+   `<IP_VM>.nip.io` (gratuit, résout vers l'IP) le temps d'en acheter un.
+
+> 💡 Deux chemins ensuite : **(A) automatisé** via Terraform (`deploy/infra/oci/`, §1bis) qui crée la
+> VM + le réseau + lance le déploiement ; **(B) manuel** (§1→§5). Les deux aboutissent au même résultat.
+
 ## 1. VM OCI (région UAE — résidence GCC)
 
-- **Compute** Ubuntu 22.04, ≥ 2 vCPU / 4 Go RAM (Keycloak + 2 Postgres) — un *VM.Standard.A1.Flex*
-  (Ampere, Always Free) 2 OCPU/12 Go convient bien.
-- **Security List / NSG** : ouvrir **80** et **443** en entrée (et 22 pour SSH). Rien d'autre.
+- **Compute** Ubuntu 22.04 sur *VM.Standard.A1.Flex* (Ampere, **Always Free**). Plafond free =
+  **2 OCPU / 12 Go total** (réduit depuis ~15 juin 2026, avant 4/24). On dimensionne pile au plafond.
+  Les limites mémoire du compose (≈ 4 Go cumulés) tiennent largement dans 12 Go.
+- ⚠️ **Capacité A1** parfois tendue en EAU : si le provisioning échoue (« out of capacity »), réessaie
+  (autre AD, ou plus tard). C'est le seul aléa réel du free tier.
+- **Security List / NSG** : ouvrir **80** et **443** en entrée (et 22 pour SSH, idéalement restreint à ton IP).
 - Installer Docker + compose :
   ```bash
   curl -fsSL https://get.docker.com | sh
   sudo usermod -aG docker $USER   # se reconnecter ensuite
   ```
+
+## 1bis. Chemin automatisé (Terraform — recommandé)
+
+Provisionne VM + réseau + déploiement en une fois depuis `deploy/infra/oci/` :
+
+```bash
+cd deploy/infra/oci
+cp terraform.tfvars.example terraform.tfvars   # renseigner OCIDs + clé API + domaines
+terraform init && terraform apply
+```
+La clé API OCI se génère dans : **Console OCI → Profil → User settings → API Keys → Add API Key**
+(elle fournit tenancy/user OCID + fingerprint + la clé privée). `terraform output` donne l'IP publique
+et les étapes DNS. Si `repo_url` est renseigné, cloud-init clone et lance `deploy.sh` tout seul.
 
 ## 2. DNS
 
@@ -34,38 +63,32 @@ auth.tondomaine.com   → <IP_VM>
 ```
 (Le TLS est émis automatiquement par Caddy via Let's Encrypt au 1er démarrage.)
 
-## 3. Récupérer le bundle sur la VM
+## 3. Déploiement (chemin manuel — une commande)
 
-Copier le dossier `04_code/` (ou cloner le repo) sur la VM, puis :
+Copier le dossier `04_code/` sur la VM, puis :
 ```bash
 cd 04_code/deploy/prod
-cp .env.prod.example .env
+APP_DOMAIN=app.tondomaine.com AUTH_DOMAIN=auth.tondomaine.com ./deploy.sh
 ```
 
-## 4. Secrets (`.env`) — étape critique
-
-Générer chaque secret : `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`
-
-| Variable | Valeur |
-|---|---|
-| `APP_DOMAIN` / `AUTH_DOMAIN` | tes 2 sous-domaines (§2) |
-| `AUTH_SECRET` | secret HMAC (obligatoire, fail-fast prod) |
-| `APP_DB_PASSWORD` / `KC_DB_PASSWORD` | mots de passe Postgres |
-| `KC_ADMIN_PASSWORD` | console admin Keycloak (`https://AUTH_DOMAIN/admin`) |
-| `OIDC_GENERIC_CLIENT_SECRET` | **doit être IDENTIQUE** au `secret` du client dans `keycloak/atlas-realm.json` |
-
-> ⚠️ **Synchroniser le secret du client OIDC.** Avant le 1er boot, remplace
-> `CHANGE_ME_atlas_kc_client_secret` dans `keycloak/atlas-realm.json` **ET** mets la même
-> valeur dans `OIDC_GENERIC_CLIENT_SECRET` du `.env`. Sinon l'échange de code échoue.
-
-## 5. Lancer
+`deploy.sh` fait tout, de façon **idempotente** :
+- crée `.env` depuis l'exemple si absent ;
+- **génère les secrets manquants** (`AUTH_SECRET`, mots de passe Postgres, `KC_ADMIN_PASSWORD`,
+  `OIDC_GENERIC_CLIENT_SECRET`) — relancer ne les régénère pas ;
+- **synchronise automatiquement** le secret OIDC entre `.env` et le realm Keycloak (fini le gotcha
+  de l'ancien §4 : plus de copier-coller manuel de `CHANGE_ME_…`). Le realm runtime est généré dans
+  `keycloak/import/` (gitignoré) depuis `keycloak/atlas-realm.template.json` — **aucun secret versionné** ;
+- lance `docker compose up -d --build`.
 
 ```bash
-docker compose up -d --build
 docker compose logs -f backend     # voir migrations + provision (récupère les IDs école/classe/enfant)
 ```
 Le backend migre (`alembic upgrade head`) et provisionne le tenant démo + les 4 mouvements
 (`PROVISION_ON_BOOT=1`). Idempotent : un redémarrage ne duplique rien.
+
+> Secrets gérés par `deploy.sh` : `AUTH_SECRET` (HMAC sessions), `APP_DB_PASSWORD`/`KC_DB_PASSWORD`,
+> `KC_ADMIN_PASSWORD` (console `https://AUTH_DOMAIN/admin`), `OIDC_GENERIC_CLIENT_SECRET`. Tu peux les
+> éditer à la main dans `.env` si tu préfères les fournir toi-même.
 
 ## 6. Comptes & TOTP (Authy / Google Authenticator)
 
@@ -97,9 +120,14 @@ Puis le parcours produit, par rôle (les IDs viennent des logs de provision, §5
 
 ## 8. Exploitation
 
-- **Sauvegardes** : `docker exec atlas-app-db-1 pg_dump -U atlas atlas | gzip > backup.sql.gz` (cron).
+- **Sauvegardes (off-box)** : `./backup.sh` dumpe les **2 bases** (app + Keycloak), gzip, rotation
+  locale (`BACKUP_KEEP`, défaut 14). Pour copier hors-VM, exporte `BACKUP_OS_BUCKET` (+
+  `BACKUP_OS_NAMESPACE`) → upload vers **OCI Object Storage via instance principal** (aucune clé sur
+  le disque). Planifie avec `backup.cron` (quotidien 02:30). Restauration : `./restore.sh app|keycloak`.
+  > ⚠️ Le free tier = **DB auto-gérée** : sans cette sauvegarde off-box, une perte de VM = perte des
+  > données élèves. C'est le seul vrai risque « pérenne » à couvrir avant un pilote réel.
 - **Logs** : `docker compose logs -f <service>`.
-- **Mise à jour** : `git pull && docker compose up -d --build`.
+- **Mise à jour** : `git pull && ./deploy.sh`.
 - **Sync nocturne rostering** (si Google branché plus tard) : cron `scripts/roster_sync.py` (cf. Runbook §6).
 
 ## 9. Gotchas
@@ -109,3 +137,8 @@ Puis le parcours produit, par rôle (les IDs viennent des logs de provision, §5
 - **GROQ_API_KEY** vide = OK (démo) ; requis seulement pour *générer/traduire* des items (console arabe « Proposer »).
 - **POSTMARK_TOKEN** vide = aucun email (liens magiques parents non envoyés) ; brancher Postmark/Resend pour la prod réelle.
 - **Données réelles** : passer `PROVISION_ON_BOOT=0` une fois le tenant pilote en place pour ne plus injecter la démo.
+- **Compte smoke `test@demo.atlas`** (dans le realm, mdp non-temporaire, **sans TOTP**) : pratique pour
+  les checks, mais **désactive-le dans la console Keycloak avant un pilote réel** (faille si laissé actif).
+- **Realm** : le secret OIDC n'est plus dans `keycloak/atlas-realm.json` (renommé en
+  `atlas-realm.template.json`). Ne réintroduis pas de secret en clair dans un fichier versionné ;
+  `deploy.sh` génère `keycloak/import/` (gitignoré) à chaque déploiement.

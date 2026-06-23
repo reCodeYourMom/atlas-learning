@@ -18,12 +18,12 @@ echo "Atlas — vérification post-déploiement"
 echo "API_BASE = $API_BASE"
 hr
 
-# 1) /auth/providers liste google (et autres configurés)
+# 1) /auth/providers liste le provider générique (Keycloak/OIDC, SSO-only depuis 0013)
 echo "[1] GET /auth/providers"
 PROV=$(curl -fsS --max-time 10 "$API_BASE/auth/providers" 2>/dev/null)
 if [ $? -eq 0 ] && [ -n "$PROV" ]; then
   echo "      réponse: $PROV"
-  if echo "$PROV" | grep -q '"google"'; then green "google présent"; else red "google absent (vérifier OIDC_GOOGLE_CLIENT_ID/SECRET)"; fi
+  if echo "$PROV" | grep -q '"generic"'; then green "provider générique (Keycloak) présent"; else red "provider générique absent (vérifier OIDC_GENERIC_CLIENT_ID/SECRET/ISSUER)"; fi
 else
   red "endpoint injoignable"
 fi
@@ -48,7 +48,7 @@ hr
 
 # ----- Checks manuels (nécessitent comptes/tenants réels) ----------
 echo "[manuel] À valider à la main (runbook §7) :"
-info "Login Google d'un compte staff → session + landing par rôle"
+info "Login Keycloak (TOTP) d'un compte staff → session + landing par rôle"
 info "Onboarding d'un domaine de test → tenant créé, checklist visible"
 info "POST /admin/rostering/sync → RosterRun 'ok', effectifs, statut 'connected'"
 info "ROSTER_GUARDIANS=1 → liens parents créés (source='roster')"

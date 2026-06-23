@@ -1,0 +1,21 @@
+# Copier en terraform.tfvars (gitignoré) et renseigner.
+# Les 4 premières valeurs viennent de : OCI Console → Profil → User settings → API Keys
+# (« Add API Key » génère la clé privée + affiche un bloc de config avec ces OCIDs).
+
+tenancy_ocid     = "ocid1.tenancy.oc1..xxxxx"
+user_ocid        = "ocid1.user.oc1..xxxxx"
+fingerprint      = "aa:bb:cc:dd:..."          # empreinte de la clé API
+private_key_path = "~/.oci/atlas_api_key.pem" # clé privée API téléchargée
+compartment_ocid = "ocid1.tenancy.oc1..xxxxx" # = tenancy_ocid pour le compartment racine
+
+region = "me-abudhabi-1"                       # home region = UAE Central (Abu Dhabi). ⚠ DOIT être ta home region (Always Free)
+
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+ssh_ingress_cidr    = "0.0.0.0/0"             # mets "TON.IP.PUB.LIC/32" pour durcir le SSH
+
+app_domain  = "app.tondomaine.com"
+auth_domain = "auth.tondomaine.com"
+
+# Optionnel : si renseigné, cloud-init clone et déploie tout seul.
+# Laisse vide pour copier le bundle en scp et lancer deploy.sh à la main.
+repo_url = ""

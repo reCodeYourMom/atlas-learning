@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --line-latin: 1.5;
+  --line-arabic: 1.85; /* l'arabe a besoin de plus de hauteur de ligne (Brief §6) */
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-sand-50 text-sand-800 antialiased;
+  font-feature-settings: "ss01";
+}
+
+/* Script-aware line-height : on n'applique pas la même interligne aux deux scripts. */
+html[lang="ar"] body {
+  line-height: var(--line-arabic);
+}
+html[lang="en"] body {
+  line-height: var(--line-latin);
+}
+
+/* L'arabe utilise la famille dédiée. */
+html[lang="ar"] {
+  font-family: var(--font-plex-ar), var(--font-plex-sans), sans-serif;
+}
+
+/* Les nombres et formules mathématiques se lisent toujours LTR, même en page RTL. */
+.num,
+[data-ltr] {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/* Icônes directionnelles : se miroitent en RTL. */
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Focus visible accessible (WCAG 2.1 AA). */
+:focus-visible {
+  outline: 2px solid theme("colors.brand.500");
+  outline-offset: 2px;
+}
+
+/* Barres de progression : transition douce. */
+.bar-fill {
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Impression : on masque le chrome de l'app, on garde le document du rapport. */
+@media print {
+  header.sticky { display: none !important; }
+  body { background: #fff; }
+  main { padding: 0 !important; max-width: none !important; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeUp 0.35s ease-out both;
+}

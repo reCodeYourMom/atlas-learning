@@ -1,0 +1,291 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { AppShell } from "@/components/AppShell";
+import { useLang } from "@/components/LanguageProvider";
+import { Button, Card, Chip, Loading, SectionTitle } from "@/components/ui";
+import { EthicsStance } from "@/components/EthicsStance";
+import { api, type AuditEntry, type Integration, type RosterRun, type SetupState } from "@/lib/api";
+import type { DictKey } from "@/lib/i18n";
+
+const STEP_LABEL: Record<string, DictKey> = {
+  connect: "it.step.connect",
+  sync: "it.step.sync",
+  verify: "it.step.verify",
+  parents: "it.step.parents",
+};
+
+/**
+ * Console IT (écran J) : intégration d'annuaire Google + rostering.
+ * Gate d'achat : l'IT admin connecte son domaine, déclenche/suit les synchronisations.
+ */
+export default function ITPage() {
+  return (
+    <AppShell narrow>
+      <ITView />
+    </AppShell>
+  );
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  connected: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  pending: "bg-amber-50 text-amber-800 ring-amber-200",
+  error: "bg-rose-50 text-rose-800 ring-rose-200",
+  over_capacity: "bg-rose-50 text-rose-800 ring-rose-200",
+  blocked: "bg-amber-50 text-amber-800 ring-amber-200",
+};
+
+const STATUS_KEY: Record<string, DictKey> = {
+  pending: "it.status.pending",
+  connected: "it.status.connected",
+  error: "it.status.error",
+  over_capacity: "it.status.over",
+  blocked: "it.status.blocked",
+};
+
+function ITView() {
+  const { t, lang } = useLang();
+  const [data, setData] = useState<Integration | null>(null);
+  const [runs, setRuns] = useState<RosterRun[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [setup, setSetup] = useState<SetupState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    const [integ, history, log, st] = await Promise.all([
+      api.adminIntegration(), api.rosteringRuns(), api.adminAudit(), api.adminSetup(),
+    ]);
+    setData(integ);
+    setRuns(history.runs);
+    setAudit(log.entries);
+    setSetup(st);
+  }
+
+  async function inviteParents() {
+    setBusy(true);
+    try {
+      await api.parentsInvite();
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportData() {
+    const bundle = await api.adminExport();
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `atlas-export-${data?.organization.domain ?? "tenant"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  useEffect(() => {
+    refresh().catch(() => setError(t("it.loaderror"))).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function sync(force = false) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.rosteringSync(force);
+      await refresh();
+    } catch {
+      setError(t("it.syncerror"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <Loading label={t("common.loading")} />;
+
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString(lang === "ar" ? "ar" : "en-GB") : t("it.never");
+  const status = data?.integration?.status ?? "pending";
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-sand-800">{t("it.title")}</h1>
+        <p className="mt-1 text-sm text-sand-500">{t("it.subtitle")}</p>
+      </header>
+
+      {/* Parti pris éthique affiché = argument de gouvernance IA face au régulateur (Mouvement 04). */}
+      <EthicsStance variant="governance" />
+
+      {/* Mise en route guidée — tant que tout n'est pas coché */}
+      {setup && setup.done < setup.total && (
+        <Card className="p-5">
+          <SectionTitle title={`${t("it.setup")} (${setup.done}/${setup.total})`} />
+          <ul className="mt-2 space-y-2">
+            {setup.steps.map((step) => (
+              <li key={step.key} className="flex items-center gap-3 text-sm">
+                <span
+                  className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs ${
+                    step.done ? "bg-emerald-500 text-white" : "bg-sand-200 text-sand-500"
+                  }`}
+                >
+                  {step.done ? "✓" : ""}
+                </span>
+                <span className={step.done ? "text-sand-400 line-through" : "text-sand-700"}>
+                  {t(STEP_LABEL[step.key] ?? "it.setup")}
+                </span>
+                {step.key === "parents" && !step.done && (
+                  <button
+                    onClick={inviteParents}
+                    disabled={busy}
+                    className="ms-auto text-xs font-medium text-brand-600 hover:underline"
+                  >
+                    {t("it.invite")}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Intégration d'annuaire */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <SectionTitle title={t("it.rostering")} />
+          <Chip className={`shrink-0 ${STATUS_STYLE[status] ?? STATUS_STYLE.pending}`}>
+            {t(STATUS_KEY[status] ?? "it.status.pending")}
+          </Chip>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-4 text-sm">
+          <Info label={t("it.domain")} value={data?.organization.domain ?? "—"} />
+          <Info label={t("it.lastsync")} value={fmt(data?.integration?.last_sync_at ?? null)} />
+          <div>
+            <dt className="text-xs text-sand-400">{t("it.seats")}</dt>
+            <dd
+              className={`mt-0.5 font-medium ${data?.organization.over_capacity ? "text-rose-600" : "text-sand-800"}`}
+              data-ltr
+            >
+              {data?.organization.seats != null
+                ? `${data.organization.seats_used} / ${data.organization.seats}`
+                : String(data?.organization.seats_used ?? 0)}
+              {data?.organization.over_capacity ? ` · ${t("it.overcap")}` : ""}
+            </dd>
+          </div>
+          <Info label={t("it.admin")} value={data?.integration?.admin_email ?? "—"} />
+        </dl>
+
+        {data?.integration?.last_error && (
+          <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700" data-ltr>
+            {data.integration.last_error}
+          </p>
+        )}
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+
+        {status === "blocked" && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-medium text-amber-900">
+              {t("it.blocked.title")}
+            </p>
+            <p className="mt-1 text-sm text-amber-800">
+              {t("it.blocked.body").replace(
+                "{n}",
+                String(runs.find((r) => r.status === "blocked")?.pending_deactivations ?? "?"),
+              )}
+            </p>
+            <Button
+              onClick={() => sync(true)}
+              disabled={busy}
+              className="mt-3 bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {t("it.blocked.approve")}
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-5">
+          <Button onClick={() => sync(false)} disabled={busy}>
+            {busy ? t("it.syncing") : t("it.sync")}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Historique des synchronisations */}
+      <Card className="p-5">
+        <SectionTitle title={t("it.runs")} />
+        {runs.length === 0 ? (
+          <p className="py-4 text-sm text-sand-500">{t("it.noruns")}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-xs text-sand-400">
+              <tr className="border-b border-sand-100 text-start">
+                <th className="py-2 text-start font-medium">{t("it.col.date")}</th>
+                <th className="py-2 text-end font-medium">{t("it.col.created")}</th>
+                <th className="py-2 text-end font-medium">{t("it.col.updated")}</th>
+                <th className="py-2 text-end font-medium">{t("it.col.deactivated")}</th>
+                <th className="py-2 text-end font-medium">{t("it.col.errors")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r) => (
+                <tr key={r.id} className="border-b border-sand-50 last:border-0">
+                  <td className="py-2 text-sand-700">{fmt(r.started_at)}</td>
+                  <td className="py-2 text-end text-sand-700">{r.created}</td>
+                  <td className="py-2 text-end text-sand-700">{r.updated}</td>
+                  <td className="py-2 text-end text-sand-700">{r.deactivated}</td>
+                  <td className={`py-2 text-end ${r.errors ? "text-rose-600" : "text-sand-400"}`}>
+                    {r.errors}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {/* Conformité PDPL : audit visible + portabilité */}
+      <Card className="p-5">
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <SectionTitle title={t("it.compliance")} />
+          <Button onClick={exportData} className="bg-sand-100 text-sand-700 hover:bg-sand-200">
+            {t("it.export")}
+          </Button>
+        </div>
+        {audit.length === 0 ? (
+          <p className="py-2 text-sm text-sand-500">{t("it.noaudit")}</p>
+        ) : (
+          <ul className="divide-y divide-sand-50 text-sm">
+            {audit.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-4 py-2">
+                <span className="font-medium text-sand-700" data-ltr>{e.action}</span>
+                <span className="shrink-0 text-xs text-sand-400">{fmt(e.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* Posture sécurité (rappel) */}
+      <Card className="p-5">
+        <SectionTitle title={t("it.security")} />
+        <ul className="mt-1 grid gap-2 text-sm text-sand-600 sm:grid-cols-2">
+          <li>• {lang === "ar" ? "MFA إلزامي للطاقم (TOTP)" : "MFA staff obligatoire (TOTP)"}</li>
+          <li>• {lang === "ar" ? "SSO OIDC (Google / Microsoft)" : "SSO OIDC (Google / Microsoft)"}</li>
+          <li>• {lang === "ar" ? "إقامة البيانات في الإمارات" : "Résidence des données UAE"}</li>
+          <li>• {lang === "ar" ? "سجل تدقيق غير قابل للتعديل" : "Journal d'audit append-only"}</li>
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-sand-400">{label}</dt>
+      <dd className="mt-0.5 font-medium text-sand-800" data-ltr>{value}</dd>
+    </div>
+  );
+}

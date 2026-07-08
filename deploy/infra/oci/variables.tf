@@ -33,6 +33,16 @@ variable "ssh_public_key_path" {
   type        = string
   description = "Clé publique SSH déposée sur la VM (ex: ~/.ssh/id_ed25519.pub)."
 }
+
+# --- Chiffrement at-rest (données mineurs — cf. RUNBOOK-BETA §1) ------
+# OCID d'une Customer-Managed Key (OCI Vault) pour chiffrer le boot volume
+# À LA CRÉATION (préférable au rétrofit console qui re-chiffre). Vide = clé
+# gérée par Oracle (chiffré par défaut, mais Oracle détient la clé).
+variable "boot_kms_key_ocid" {
+  type        = string
+  description = "OCID de la CMK OCI Vault pour le boot volume. Vide = clé Oracle par défaut."
+  default     = ""
+}
 variable "ssh_ingress_cidr" {
   type        = string
   description = "CIDR autorisé pour SSH (22). Mets ton IP/32 pour durcir."

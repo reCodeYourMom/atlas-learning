@@ -13,8 +13,13 @@ region = "me-abudhabi-1"                       # home region = UAE Central (Abu 
 ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 ssh_ingress_cidr    = "0.0.0.0/0"             # mets "TON.IP.PUB.LIC/32" pour durcir le SSH
 
-app_domain  = "app.tondomaine.com"
-auth_domain = "auth.tondomaine.com"
+# CMK OCI Vault pour chiffrer le boot volume à la création (données mineurs, RUNBOOK-BETA §1).
+# Créer la clé AVANT l'apply : Console → Identity & Security → Vault → Master Encryption Key.
+# Vide = clé Oracle par défaut (chiffré, mais Oracle détient la clé).
+boot_kms_key_ocid = ""                        # "ocid1.key.oc1.me-abudhabi-1.xxxxx"
+
+app_domain  = "app.atlaslearning.ae"
+auth_domain = "auth.atlaslearning.ae"
 
 # Optionnel : si renseigné, cloud-init clone et déploie tout seul.
 # Laisse vide pour copier le bundle en scp et lancer deploy.sh à la main.

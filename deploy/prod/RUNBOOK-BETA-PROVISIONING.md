@@ -46,16 +46,13 @@ avant d'accueillir de vraies données. Le chiffre 30 est un défaut défendable,
 - Clé SSH ed25519 (`~/.ssh/id_ed25519.pub`).
 
 ### 1. CMK Vault AVANT la VM (chiffrement at-rest, données mineurs)
-Le Terraform actuel **ne configure pas** de CMK → sans cette étape la VM démarre sur clé Oracle
-par défaut. La bonne pratique est de créer la clé **avant** le provisioning et de l'attacher au boot
-volume à la création (pas de rétrofit).
+Le boot volume doit être chiffré avec une **Customer-Managed Key** créée **avant** le provisioning et
+attachée à la création (le Terraform le gère désormais via `boot_kms_key_ocid` — pas de rétrofit).
 1. Console OCI → **Identity & Security → Vault** → créer un Vault + une **AES Master Encryption Key**
    (Customer-Managed) dans la région UAE. Noter l'OCID de la clé.
-2. Éditer `deploy/infra/oci/main.tf` : sur la ressource `oci_core_instance.atlas`, bloc
-   `source_details`, ajouter `kms_key_id = var.boot_kms_key_ocid` ; déclarer la variable dans
-   `variables.tf` et la renseigner dans `terraform.tfvars`.
-   > Si tu préfères ne pas toucher le Terraform pour la beta : provisionner sans CMK (§2) PUIS
-   > migrer via Console (Block Storage → boot volume → *Assign* la clé). Retrofit possible mais
+2. Renseigner `boot_kms_key_ocid = "ocid1.key.oc1.me-abudhabi-1.xxxxx"` dans `terraform.tfvars`
+   (déjà câblé dans `main.tf` → `source_details.kms_key_id`). Laisser vide = clé Oracle par défaut.
+   > Rétrofit possible sinon via Console (Block Storage → boot volume → *Assign* la clé) mais il
    > re-chiffre le volume — l'option Terraform-à-la-création reste préférable.
 
 ### 2. Provisionner la VM (Terraform)
@@ -114,12 +111,11 @@ Puis `crontab -e` et coller les lignes de `backup.cron` (02:30, **off-box obliga
 (03:10) et `quarantine.cron` (03:40) — adapter le chemin absolu du bundle.
 
 ### 7. Smoke & vérification
-`verify_deploy.sh` (référencé au README §7) **n'existe pas dans le bundle** → vérifier à la main :
 ```bash
-curl -fsS https://app.<domaine>/api/health || echo "backend KO"
-curl -fsSI https://auth.<domaine>/realms/atlas/.well-known/openid-configuration | head -1  # issuer OIDC
-curl -fsSI https://app.<domaine> | grep -i strict-transport-security                       # HSTS Caddy actif
+API_BASE=https://app.atlaslearning.ae/api ./verify_deploy.sh
 ```
+Le script vérifie : backend vivant (`/auth/providers`, public, sans DB), découverte OIDC du realm
+`atlas`, HSTS posé par Caddy, redirection HTTP→HTTPS. Exit 0 = vert, 1 = au moins un check rouge.
 Puis parcours login réel : `https://app.<domaine>` → « Continuer avec Atlas » → email + mdp démo
 (`grep DEMO_ACCOUNTS_PASSWORD .env`) → **remplacement mdp imposé** → **QR TOTP** (Authy/Google
 Authenticator) → session par rôle. Confirme que TOTP est bien exigé (preuve MFA staff sur données mineurs).

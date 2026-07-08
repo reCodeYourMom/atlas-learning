@@ -131,6 +131,9 @@ resource "oci_core_instance" "atlas" {
   source_details {
     source_type = "image"
     source_id   = data.oci_core_images.ubuntu.images[0].id
+    # CMK OCI Vault pour le chiffrement at-rest du boot volume (données mineurs).
+    # Vide → null → chiffrement par clé gérée Oracle (défaut). Cf. RUNBOOK-BETA §1.
+    kms_key_id = var.boot_kms_key_ocid != "" ? var.boot_kms_key_ocid : null
   }
 
   metadata = {

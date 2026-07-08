@@ -1,0 +1,169 @@
+"""Tests migrations Alembic (revue adversariale + validation Postgres 2026-07-07).
+
+Couvre deux findings :
+  1. IDs de révision ≤ 32 caractères : alembic_version.version_num est un VARCHAR(32)
+     par défaut sur Postgres — un ID plus long fait échouer `alembic upgrade head` sur
+     base VIERGE (StringDataRightTruncation) et rollback TOUTE la chaîne. Invisible
+     sur SQLite (longueurs VARCHAR non appliquées) : d'où ce garde-fou statique.
+  2. Migration 0015 (uq_response_session_item) : les bases ayant tourné avec la garde
+     non atomique peuvent contenir des doublons (session_id, item_id) — la migration
+     doit les DÉDOUBLONNER (en gardant la plus ancienne réponse) AVANT d'ajouter la
+     contrainte, sinon elle bloque le déploiement du correctif lui-même.
+"""
+import os
+import sys
+import tempfile
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import sqlalchemy as sa
+from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _alembic_cfg() -> Config:
+    cfg = Config(str(ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(ROOT / "alembic"))
+    return cfg
+
+
+def test_revision_ids_max_32_chars():
+    # Garde-fou Postgres : tout ID > 32 chars casse l'UPDATE d'alembic_version.
+    script = ScriptDirectory.from_config(_alembic_cfg())
+    for rev in script.walk_revisions():
+        assert len(rev.revision) <= 32, (
+            f"revision {rev.revision!r} fait {len(rev.revision)} caractères "
+            f"(> VARCHAR(32) d'alembic_version sur Postgres)"
+        )
+
+
+def test_exactement_un_head():
+    # Une chaîne fourchue (2 heads) rend `alembic upgrade head` ambigu → déploiement cassé.
+    heads = ScriptDirectory.from_config(_alembic_cfg()).get_heads()
+    assert len(heads) == 1, f"chaîne Alembic fourchue : {heads!r}"
+
+
+def _hex(u: uuid.UUID) -> str:
+    """sa.Uuid stocke l'UUID en hex 32 chars (sans tirets) sur SQLite."""
+    return u.hex
+
+
+def _insert_response(conn, *, rid, session_id, item_id, created_at,
+                     school_id, student_id, competency_id):
+    conn.execute(sa.text(
+        "INSERT INTO response (id, school_id, student_id, item_id, competency_id, "
+        "is_correct, response_time_ms, session_id, created_at) "
+        "VALUES (:id, :school, :student, :item, :comp, 1, NULL, :session, :created)"
+    ), {"id": _hex(rid), "school": school_id, "student": student_id,
+        "item": _hex(item_id), "comp": competency_id,
+        "session": _hex(session_id) if session_id else None, "created": created_at})
+
+
+def test_upgrade_0015_dedoublonne_puis_pose_la_contrainte():
+    # Base au niveau 0014 contenant des doublons (session_id, item_id) — exactement
+    # l'état produit par l'ancien bug de garde non atomique : l'upgrade doit passer,
+    # garder la réponse la plus ANCIENNE par couple, et laisser les NULL multiples.
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); tmp.close()
+    url = f"sqlite:///{tmp.name}"
+    old_env = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
+        cfg = _alembic_cfg()
+        command.upgrade(cfg, "0014_consumed_token")
+
+        engine = sa.create_engine(url)   # PRAGMA foreign_keys OFF : lignes orphelines OK ici,
+        # seul le comportement de la migration sur la table response est sous test.
+        school, student, comp = _hex(uuid.uuid4()), _hex(uuid.uuid4()), _hex(uuid.uuid4())
+        sess1, item1, item2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        keep_id = uuid.uuid4()
+        common = dict(school_id=school, student_id=student, competency_id=comp)
+        with engine.begin() as conn:
+            # 3 doublons (sess1, item1) — seule la plus ancienne doit survivre
+            _insert_response(conn, rid=keep_id, session_id=sess1, item_id=item1,
+                             created_at="2026-01-01 08:00:00", **common)
+            _insert_response(conn, rid=uuid.uuid4(), session_id=sess1, item_id=item1,
+                             created_at="2026-01-02 08:00:00", **common)
+            _insert_response(conn, rid=uuid.uuid4(), session_id=sess1, item_id=item1,
+                             created_at="2026-01-03 08:00:00", **common)
+            # 1 réponse saine sur un autre item — intacte
+            _insert_response(conn, rid=uuid.uuid4(), session_id=sess1, item_id=item2,
+                             created_at="2026-01-01 09:00:00", **common)
+            # 2 réponses HORS session (session_id NULL) sur le même item — les NULL
+            # multiples restent LIBRES (seeds, moteur direct), jamais dédoublonnés
+            _insert_response(conn, rid=uuid.uuid4(), session_id=None, item_id=item1,
+                             created_at="2026-01-01 10:00:00", **common)
+            _insert_response(conn, rid=uuid.uuid4(), session_id=None, item_id=item1,
+                             created_at="2026-01-01 11:00:00", **common)
+
+        command.upgrade(cfg, "head")     # ne doit PAS échouer malgré les doublons
+
+        with engine.connect() as conn:
+            rows = conn.execute(sa.text(
+                "SELECT id FROM response WHERE session_id = :s AND item_id = :i"
+            ), {"s": _hex(sess1), "i": _hex(item1)}).fetchall()
+            assert len(rows) == 1                       # dédoublonné…
+            assert rows[0][0] == _hex(keep_id)          # … en gardant la plus ancienne
+            n_item2 = conn.execute(sa.text(
+                "SELECT COUNT(*) FROM response WHERE item_id = :i"), {"i": _hex(item2)}
+            ).scalar_one()
+            assert n_item2 == 1                         # ligne saine intacte
+            n_null = conn.execute(sa.text(
+                "SELECT COUNT(*) FROM response WHERE session_id IS NULL")).scalar_one()
+            assert n_null == 2                          # NULL multiples préservés
+        # la contrainte est bien posée : un nouveau doublon est rejeté
+        with engine.begin() as conn:
+            try:
+                _insert_response(conn, rid=uuid.uuid4(), session_id=sess1, item_id=item1,
+                                 created_at="2026-01-04 08:00:00", **common)
+                assert False, "doublon (session_id, item_id) aurait dû être rejeté"
+            except sa.exc.IntegrityError:
+                pass
+        engine.dispose()
+    finally:
+        if old_env is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = old_env
+        os.unlink(tmp.name)
+
+
+def test_migrations_reversibles_de_0016_a_0013():
+    # downgrade 0016 → 0013 puis re-upgrade head : la chaîne reste praticable, y compris
+    # 0014 (consumed_token créée directement en timezone-aware — revue 2026-07-08).
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); tmp.close()
+    url = f"sqlite:///{tmp.name}"
+    old_env = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
+        cfg = _alembic_cfg()
+        command.upgrade(cfg, "head")
+        command.downgrade(cfg, "0013_drop_direct_auth")
+        command.upgrade(cfg, "head")
+        # sanity : la table anti-rejeu et son index de purge ont bien été recréés
+        engine = sa.create_engine(url)
+        insp = sa.inspect(engine)
+        assert "consumed_token" in insp.get_table_names()
+        assert any(ix["name"] == "ix_consumed_token_expires_at"
+                   for ix in insp.get_indexes("consumed_token"))
+        engine.dispose()
+    finally:
+        if old_env is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = old_env
+        os.unlink(tmp.name)
+
+
+if __name__ == "__main__":
+    fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+    passed = 0
+    for fn in fns:
+        fn()
+        print(f"  PASS {fn.__name__}")
+        passed += 1
+    print(f"\n{passed}/{len(fns)} tests OK")

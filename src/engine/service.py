@@ -7,13 +7,13 @@ Aucun LLM. Isolation tenant (school_id sur toutes les écritures).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.engine.elo import Neighbor, confidence, propagate, update_elo
+from src.models.base import utcnow
 from src.models.competency import CompetencyPrerequisite
 from src.models.item import Item
 from src.models.measurement import Response, StudentCompetencyAbility
@@ -45,18 +45,61 @@ def on_response(
 ) -> Response:
     """Applique une réponse de bout en bout (transaction atomique). Retourne la Response.
 
-    Idempotent : rejouer la même `response_id` ne réapplique pas l'effet.
+    Idempotent : rejouer la même `response_id` ne réapplique pas l'effet. Le rejeu est
+    SIGNALÉ à l'appelant par l'attribut transitoire `replayed` (True = Response existante,
+    rien réappliqué) — sans ce signal, session_service ré-émettait une entrée AuditLog
+    et répondait 200 alors que le même rejeu plus tard donne 409 (revue 2026-07-08).
     """
     if response_id is not None:
         existing = session.get(Response, response_id)
         if existing is not None:
+            # Rejeu : rien n'est réappliqué. Attribut NON MAPPÉ (jamais persisté),
+            # porté par l'instance seulement — l'appelant convertit en 409 uniforme.
+            existing.replayed = True
             return existing  # déjà appliquée
 
     try:
-        item = session.get(Item, item_id)
+        # --- verrouillage pessimiste (revue concurrence 2026-07-07) ---
+        # Toutes les lignes lues-puis-écrites ici (item, ability élève, abilities des
+        # voisins touchés par la propagation) sont verrouillées via SELECT ... FOR UPDATE :
+        # sans verrou, deux réponses simultanées font un read-modify-write last-write-wins
+        # en READ COMMITTED (Elo/compteurs écrasés, pire sur un item populaire).
+        # Ordre DÉTERMINISTE d'acquisition : l'item d'abord (une seule ligne par
+        # transaction), puis les abilities triées par competency_id — deux transactions
+        # concurrentes prennent toujours les verrous dans le même ordre → pas de deadlock.
+        # NB : SQLite (dev/CI) ignore FOR UPDATE silencieusement — acceptable, la prod
+        # tourne sur Postgres où le verrou est effectif.
+        item = session.get(Item, item_id, with_for_update=True)
         if item is None:
             raise ValueError(f"item {item_id} introuvable")
         comp_id = item.competency_id
+
+        # Arêtes du graphe : lecture SEULE (jamais réécrites ici) → pas de verrou.
+        # On les lit AVANT les updates pour connaître l'ensemble des abilities à verrouiller.
+        edges = session.execute(
+            select(CompetencyPrerequisite).where(
+                or_(CompetencyPrerequisite.source_id == comp_id,
+                    CompetencyPrerequisite.target_id == comp_id)
+            )
+        ).scalars().all()
+        neighbor_comp_ids = [
+            e.target_id if e.source_id == comp_id else e.source_id for e in edges
+        ]
+
+        # Verrouille les abilities (élève + tous les voisins candidats à la propagation),
+        # une par une, en ordre trié (déterministe). Une ligne encore absente ne peut pas
+        # être verrouillée : on la crée et on la flushe ICI MÊME, dans le MÊME ordre trié
+        # que les verrous — deux transactions concurrentes émettent donc leurs INSERTs
+        # dans le même ordre (pas d'attente croisée sur la PK composite → pas de
+        # deadlock ; l'ordre source-d'abord-puis-edges-DB de l'ancienne version en créait
+        # un, cf. revue adversariale 2026-07-07). La course résiduelle sur une MÊME ligne
+        # reste rejetée par la PK composite (student_id, competency_id) :
+        # IntegrityError → rollback complet → l'appelant rejoue (session_service).
+        for cid in sorted({comp_id, *neighbor_comp_ids}, key=str):
+            row = session.get(StudentCompetencyAbility, (student_id, cid), with_for_update=True)
+            if row is None:
+                _ability(session, student_id, cid, school_id)
+                session.flush()
 
         # --- update Elo direct (T3.1 + T3.2) ---
         ability = _ability(session, student_id, comp_id, school_id)
@@ -68,18 +111,12 @@ def on_response(
         ability.ability_elo = new_ability
         ability.n_direct += 1
         ability.confidence = confidence(ability.n_direct)
-        ability.last_measured_at = datetime.now()
+        ability.last_measured_at = utcnow()
         item.difficulty_elo = new_item_diff
         item.n_responses += 1
         delta = new_ability - old_ability
 
         # --- propagation 1-saut (T3.3) ---
-        edges = session.execute(
-            select(CompetencyPrerequisite).where(
-                or_(CompetencyPrerequisite.source_id == comp_id,
-                    CompetencyPrerequisite.target_id == comp_id)
-            )
-        ).scalars().all()
         neighbors = []
         for e in edges:
             nb_comp = e.target_id if e.source_id == comp_id else e.source_id
@@ -101,8 +138,9 @@ def on_response(
             school_id=school_id, student_id=student_id, item_id=item_id,
             competency_id=comp_id, is_correct=is_correct,
             response_time_ms=response_time_ms, session_id=session_id,
-            created_at=datetime.now(),
+            created_at=utcnow(),
         )
+        resp.replayed = False   # première application (cf. docstring : signal de rejeu)
         session.add(resp)
         session.commit()
         return resp

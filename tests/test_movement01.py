@@ -8,7 +8,7 @@ Isolation RBAC réutilisée du flux existant (cf. test_views.py).
 import json
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,6 +23,7 @@ from src.api.views_service import class_digest
 from src.models import competency, item, measurement, org, session as _se  # noqa: F401
 from src.models.base import (
     AnswerFormat, Base, CompetencyStatus, EdgeType, ItemStatus, Role, Subject, WeightSource,
+    utcnow,
 )
 from src.models.competency import Competency, CompetencyPrerequisite
 from src.models.item import Item
@@ -50,7 +51,7 @@ def _item(comp_id, stem_en="What is 1/2 + 1/4?", stem_ar="ما هو ١/٢ + ١/�
 
 
 def _setup(now=None):
-    now = now or datetime.now()
+    now = now or utcnow()   # aware UTC — jamais datetime.now() naïf (cf. test_timezone_integrity)
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     event.listen(engine, "connect", lambda c, r: c.execute("PRAGMA foreign_keys=ON"))
     Base.metadata.create_all(engine)

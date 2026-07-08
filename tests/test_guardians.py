@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from starlette.testclient import TestClient
 
 from src.db import make_engine
-from src.models.base import Base, Role
+from src.models.base import Base, Role, utcnow
 from src.models import competency as _c, item as _i, measurement as _m, session as _se, org as _o  # noqa: F401,E501
 from src.models.measurement import School, Student
 from src.models.org import (
@@ -101,6 +101,24 @@ def test_staff_unlink_guardian():
     r = client.delete(f"/students/{ids['alice']}/guardians/{dad.id}", headers=h)
     assert r.status_code == 200
     assert client.get(f"/students/{ids['alice']}/guardians", headers=h).json()["guardians"] == []
+    _clear()
+
+
+def test_soft_deleted_guardian_email_hidden():
+    # Revue 2026-07-08 : la jointure AppUser × ParentStudent exposait l'email d'un parent
+    # SOFT-DELETED au staff (le lien, lui, reste en base — réactivable par add_guardian).
+    client, engine, ids = _setup()
+    h = {"Authorization": f"Bearer {ids['admin']}"}
+    client.post(f"/students/{ids['alice']}/guardians",
+                json={"email": "dad@home.com", "send_invite": False}, headers=h)
+    client.post(f"/students/{ids['alice']}/guardians",
+                json={"email": "mom@home.com", "send_invite": False}, headers=h)
+    with Session(bind=engine) as s:
+        dad = s.execute(select(AppUser).where(AppUser.email == "dad@home.com")).scalar_one()
+        dad.deleted_at, dad.is_active = utcnow(), False    # droit à l'oubli du parent
+        s.commit()
+    g = client.get(f"/students/{ids['alice']}/guardians", headers=h).json()["guardians"]
+    assert [x["email"] for x in g] == ["mom@home.com"]     # dad masqué, mom toujours là
     _clear()
 
 

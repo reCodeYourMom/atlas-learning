@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.items.quarantine import active_pool
-from src.models.base import EdgeType
+from src.models.base import EdgeType, ensure_utc, utcnow
 from src.models.competency import Competency, CompetencyPrerequisite
 from src.models.item import Item
 from src.models.measurement import Response, Student, StudentCompetencyAbility
@@ -23,6 +23,20 @@ from src.models.org import Classroom, StudentClassroom
 from src.restitution.diagnosis import MASTERY_ELO, diagnose, diagnose_all
 from src.restitution.scale import DEFAULT_ANCHORS, restitute
 from src.restitution.tutor import explain_diagnosis
+
+
+def _is_mastered(ability_elo: float, n_direct: int) -> bool:
+    """Maîtrise AFFICHÉE aux vues (enseignant/admin/parent) : seuil atteint ET mesuré.
+
+    MASTERY_ELO == ELO_START (1500) : une compétence JAMAIS répondue peut être poussée
+    juste au-dessus du seuil (~1504) par simple PROPAGATION depuis ses voisines. C'est
+    une estimation, pas une mesure — sans réponse directe (n_direct == 0), on n'affiche
+    jamais « maîtrisé ». Le diagnostic causal interne (diagnosis.py), lui, travaille
+    volontairement sur les estimations EXISTANTES (lignes ability, mesurées ou propagées) —
+    et ignore les nœuds sans aucune ligne : cette garde ne s'applique qu'à la restitution.
+    (Revue 2026-07-07.)
+    """
+    return n_direct > 0 and ability_elo >= MASTERY_ELO
 
 
 def _code_maps(s: Session):
@@ -100,7 +114,7 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
     l'enseignant qui ouvre sa vue classe chaque semaine. Donne l'activité de la semaine,
     les lacunes ÉMERGENTES (re)mesurées dans la fenêtre, et la priorité #1 où agir.
     """
-    now = now or datetime.now()
+    now = ensure_utc(now) or utcnow()   # naïf accepté (tests) → réinterprété UTC
     since = now - timedelta(days=days)
     code_of, label_of, hard, label_ar_of = _code_maps(s)
     student_ids = _class_student_ids(s, classroom_id)
@@ -124,7 +138,8 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
         ).scalars().all()
         abilities = {code_of[r.competency_id]: r.ability_elo for r in rows if r.competency_id in code_of}
         recent = {code_of[r.competency_id] for r in rows
-                  if r.competency_id in code_of and r.last_measured_at and r.last_measured_at >= since}
+                  if r.competency_id in code_of and r.last_measured_at
+                  and ensure_utc(r.last_measured_at) >= since}  # SQLite relit naïf → UTC
         if not recent:
             continue
         # Une cause racine compte UNE fois par élève (plusieurs lacunes peuvent y remonter).
@@ -181,9 +196,16 @@ def school_overview(s: Session, school_id: uuid.UUID) -> dict:
         if st.classroom_id:
             classes_of.setdefault(st.id, set()).add(st.classroom_id)
 
+    # Jointure Student : les abilities d'un élève SOFT-DELETED ne pèsent plus dans les
+    # moyennes/taux de maîtrise de l'établissement (revue 2026-07-08) — la liste
+    # `students` était déjà filtrée, mais pas cet agrégat.
     rows = [r for r in s.execute(
-        select(StudentCompetencyAbility).where(StudentCompetencyAbility.school_id == school_id)
-    ).scalars() if r.n_direct > 0]  # mesures directes seulement
+        select(StudentCompetencyAbility)
+        .join(Student, Student.id == StudentCompetencyAbility.student_id)
+        .where(StudentCompetencyAbility.school_id == school_id,
+               Student.deleted_at.is_(None))
+    ).scalars() if r.n_direct > 0]  # mesures directes seulement — même garde que _is_mastered
+    # (une ability seulement propagée n'entre ni dans mean_ability ni dans mastery_rate)
 
     by_comp: dict = {}
     for r in rows:
@@ -273,7 +295,8 @@ def student_profile(s: Session, student_id: uuid.UUID) -> dict:
             "grade": m.get("grade"), "strand": m.get("strand", code),
             "ability_elo": round(r.ability_elo, 1), "confidence": round(r.confidence, 3),
             "n_direct": r.n_direct, "measured": r.n_direct > 0,
-            "mastered": r.ability_elo >= MASTERY_ELO,
+            # propagation ≠ mesure : jamais « maîtrisé » sans réponse directe
+            "mastered": _is_mastered(r.ability_elo, r.n_direct),
         })
     competencies.sort(key=lambda c: (c["grade"] or 0, c["ability_elo"]))
 

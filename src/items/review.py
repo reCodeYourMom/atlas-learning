@@ -7,14 +7,13 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.items.generation import GeneratedItem
-from src.models.base import ItemStatus
+from src.models.base import ItemStatus, utcnow
 from src.models.item import Item, ItemContent
 
 # Cycle de vie autorisé : ai_generated → human_reviewed → linguist_validated → active.
@@ -41,7 +40,7 @@ def _stamp_reviewer(item: Item, reviewer: str, **extra) -> None:
     """Écrit l'identité du reviewer dans provenance (réassignation = change tracking)."""
     prov = dict(item.provenance or {})
     prov["reviewer"] = reviewer
-    prov["reviewed_at"] = datetime.now().isoformat(timespec="seconds")
+    prov["reviewed_at"] = utcnow().isoformat(timespec="seconds")
     prov.update(extra)
     item.provenance = prov
 
@@ -104,7 +103,7 @@ def approve(session: Session, item: Item, reviewer: str) -> Item:
 
 def reject(session: Session, item: Item, reviewer: str, reason: str) -> Item:
     """Rejette un item : soft delete (jamais détruit), trace reviewer + raison (AC3)."""
-    item.deleted_at = datetime.now()
+    item.deleted_at = utcnow()
     _stamp_reviewer(item, reviewer, rejected=True, reject_reason=reason)
     session.commit()
     return item

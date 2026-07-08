@@ -79,6 +79,137 @@ def test_t53_ac3_self_gap_no_false_cause():
     assert d.is_self is True and d.root_cause == "ADD_UNLIKE"
 
 
+# ---------- T5.3 adversarial — clôture amont complète (revue 2026-07-07) ----------
+
+def _assert_chain_is_path(chain, hard):
+    """La chaîne doit suivre des arêtes HARD réelles : chain[i+1] prérequis de chain[i]."""
+    for down, up in zip(chain, chain[1:]):
+        assert up in hard.get(down, []), f"{up} n'est pas prérequis HARD de {down}"
+
+
+def test_t53_adv_deep_branch_root_found_whatever_db_order():
+    # Deux branches de profondeurs inégales : SHORT (terminale, profondeur 1) et
+    # B1→B2→B3 (racine réelle B3, profondeur 3). L'ancien algo suivait unmastered[0]
+    # et pouvait rester bloqué sur SHORT selon l'ordre DB.
+    abilities = {"GAP": 1200, "SHORT": 1200, "B1": 1200, "B2": 1200, "B3": 1200}
+    for direct in (["SHORT", "B1"], ["B1", "SHORT"]):   # les deux ordres d'insertion DB
+        hard = {"GAP": list(direct), "B1": ["B2"], "B2": ["B3"], "B3": [], "SHORT": []}
+        d = diagnose("GAP", abilities, hard)
+        assert d.root_cause == "B3"                     # la plus profonde, quel que soit l'ordre
+        assert d.is_self is False
+        assert d.chain == ["GAP", "B1", "B2", "B3"]
+        _assert_chain_is_path(d.chain, hard)
+
+
+def test_t53_adv_transitive_ancestor_broken_behind_mastered_prereq():
+    # Prérequis DIRECT maîtrisé mais ancêtre TRANSITIF cassé : la maîtrise n'est pas
+    # monotone (Elo par nœud). L'ancien algo renvoyait un faux is_self=True.
+    hard = {"GAP": ["MID"], "MID": ["ROOT"], "ROOT": []}
+    abilities = {"GAP": 1200, "MID": 1800, "ROOT": 1200}  # MID maîtrisé, ROOT cassé
+    d = diagnose("GAP", abilities, hard)
+    assert d.is_self is False
+    assert d.root_cause == "ROOT"
+    assert d.chain == ["GAP", "MID", "ROOT"]              # chemin réel, via le maillon maîtrisé
+    _assert_chain_is_path(d.chain, hard)
+
+
+def test_t53_adv_diamond_single_root_no_duplicates():
+    # Diamant : GAP → {X, Y} → ROOT. Une seule racine, pas de doublon dans la chaîne.
+    abilities = {"GAP": 1200, "X": 1200, "Y": 1200, "ROOT": 1200}
+    for direct in (["X", "Y"], ["Y", "X"]):
+        hard = {"GAP": list(direct), "X": ["ROOT"], "Y": ["ROOT"], "ROOT": []}
+        d = diagnose("GAP", abilities, hard)
+        assert d.root_cause == "ROOT"
+        assert len(d.chain) == len(set(d.chain))          # pas de doublon
+        assert d.chain == ["GAP", "X", "ROOT"]            # déterministe (tri par code)
+        _assert_chain_is_path(d.chain, hard)
+
+
+def test_t53_adv_cycle_terminates_deterministic():
+    # Cycle non maîtrisé C1 ↔ C2 en amont : pas de racine stricte (chacun est ancêtre
+    # de l'autre) → repli documenté : la plus profonde depuis GAP, puis code.
+    hard = {"GAP": ["C1"], "C1": ["C2"], "C2": ["C1"]}
+    abilities = {"GAP": 1200, "C1": 1200, "C2": 1200}
+    d = diagnose("GAP", abilities, hard)                  # doit terminer (pas de boucle infinie)
+    assert d.root_cause == "C2" and d.is_self is False
+    assert d.chain == ["GAP", "C1", "C2"]
+    # cycle passant par la lacune elle-même : termine aussi, et clôture maîtrisée → is_self
+    hard_self = {"GAP": ["A"], "A": ["GAP"]}
+    d2 = diagnose("GAP", {"GAP": 1200, "A": 1800}, hard_self)
+    assert d2.is_self is True and d2.root_cause == "GAP"
+
+
+def test_t53_adv_is_self_requires_whole_closure_mastered():
+    # Toute la clôture amont (profonde) est maîtrisée → lacune propre, et rien d'autre.
+    hard = {"GAP": ["MID"], "MID": ["ROOT"], "ROOT": []}
+    abilities = {"GAP": 1200, "MID": 1800, "ROOT": 1800}
+    d = diagnose("GAP", abilities, hard)
+    assert d.is_self is True and d.root_cause == "GAP" and d.chain == ["GAP"]
+
+
+# ---------- T5.3 adversarial — ancêtres JAMAIS estimés (revue adversariale 2026-07-07) ----------
+
+def test_t53_adv_unmeasured_ancestor_never_becomes_root():
+    # Preuve du panel : P (prérequis direct) est maîtrisé, Q et R n'ont AUCUNE ligne
+    # ability (jamais estimés). L'ancien code désignait R comme racine avec « R n'est
+    # pas maîtrisé » sans aucune donnée. Attendu : lacune propre, explication dédiée.
+    hard = {"GAP": ["P"], "P": ["Q"], "Q": ["R"]}
+    abilities = {"GAP": 1200, "P": 1800}          # Q et R absents du dict
+    d = diagnose("GAP", abilities, hard)
+    assert d.root_cause == "GAP" and d.is_self is True and d.chain == ["GAP"]
+    assert "pas encore" in d.explanation           # on ne certifie pas la maîtrise de Q/R
+
+
+def test_t53_adv_measured_root_behind_unmeasured_intermediate_still_found():
+    # Un ancêtre MESURÉ non maîtrisé derrière un maillon jamais estimé reste détecté :
+    # la restriction aux nœuds estimés ne casse pas la clôture transitive.
+    hard = {"GAP": ["MID"], "MID": ["ROOT"], "ROOT": []}
+    abilities = {"GAP": 1200, "ROOT": 1200}       # MID jamais estimé
+    d = diagnose("GAP", abilities, hard)
+    assert d.root_cause == "ROOT" and d.is_self is False
+    assert d.chain == ["GAP", "MID", "ROOT"]      # chemin réel via le maillon non estimé
+
+
+def test_t53_adv_root_stops_at_deepest_measured_unmastered():
+    # Racine = le nœud ESTIMÉ non maîtrisé le plus profond — jamais l'origine non
+    # mesurée du référentiel (qui regroupait toute une classe sous un même nœud).
+    hard = {"GAP": ["P"], "P": ["Q"], "Q": []}
+    abilities = {"GAP": 1200, "P": 1200}          # Q (origine) jamais estimé
+    d = diagnose("GAP", abilities, hard)
+    assert d.root_cause == "P" and d.is_self is False
+    assert d.chain == ["GAP", "P"]
+
+
+# ---------- T5.3 adversarial — nits panel (revue adversariale 2026-07-08) ----------
+
+def test_t53_adv_chain_prefers_all_unmastered_path_at_equal_length():
+    # Deux chemins de MÊME longueur vers ROOT : via Mm (maîtrisé) ou via Uu (non
+    # maîtrisé). Le parent d'un nœud partagé doit être choisi par clé (maîtrisé, code)
+    # au moment de l'affectation — pas au premier arrivé du frontier (l'ordre
+    # inter-parents reflétait l'ordre DB). L'ancien code renvoyait GAP→P1→Mm→ROOT.
+    abilities = {"GAP": 1200, "P1": 1200, "P2": 1200, "Mm": 1800, "Uu": 1200, "ROOT": 1200}
+    for direct in (["P1", "P2"], ["P2", "P1"]):     # les deux ordres d'insertion DB
+        hard = {"GAP": list(direct), "P1": ["Mm"], "P2": ["Uu"],
+                "Mm": ["ROOT"], "Uu": ["ROOT"]}
+        d = diagnose("GAP", abilities, hard)
+        assert d.root_cause == "ROOT"
+        assert d.chain == ["GAP", "P2", "Uu", "ROOT"]   # chemin tout-non-maîtrisé
+        _assert_chain_is_path(d.chain, hard)
+
+
+def test_t53_adv_cycle_node_not_disqualified_by_self_ancestry():
+    # A (non maîtrisé, profondeur 2) est en cycle avec Ym (maîtrisé) : A appartient à
+    # sa propre clôture d'ancêtres. L'ancien filtre (_hard_ancestors(c) & unmastered)
+    # le disqualifiait par auto-ancestralité au profit de B, racine plus superficielle
+    # (profondeur 1). Attendu : clôture PROPRE → A reste candidate et gagne (plus profonde).
+    hard = {"GAP": ["P", "B"], "P": ["A"], "A": ["Ym"], "Ym": ["A"], "B": []}
+    abilities = {"GAP": 1200, "P": 1200, "A": 1200, "Ym": 1800, "B": 1200}
+    d = diagnose("GAP", abilities, hard)
+    assert d.root_cause == "A" and d.is_self is False
+    assert d.chain == ["GAP", "P", "A"]
+    _assert_chain_is_path(d.chain, hard)
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

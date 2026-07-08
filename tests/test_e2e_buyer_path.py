@@ -151,11 +151,15 @@ def _run_buyer_path(engine):
     # la console reflète l'effectif
     assert client.get("/admin/integration", headers=H).json()["organization"]["seats_used"] == 1
 
-    # === 3) Accès parent : lien magique → espace de l'enfant ===
+    # === 3) Accès parent : lien magique → confirmation humaine → espace de l'enfant ===
     assert client.post("/parent/request-link", json={"email": "mom@home.com"}).status_code == 200
     tok = re.search(r"/api/parent/login\?token=([^\"]+)", FAKE_EMAIL.sent[-1]["html"]).group(1)
+    # GET du lien email : validation sans consommation (anti-préchargement des scanners).
     login = client.get(f"/parent/login?token={tok}", follow_redirects=False)
-    parent_session = login.headers["location"].split("#token=")[1]
+    assert "/parent/confirm#token=" in login.headers["location"]
+    # Clic humain « Continuer » : le POST consomme le lien et ouvre la session.
+    confirm = client.post("/parent/login/confirm", json={"token": tok})
+    parent_session = confirm.json()["token"]
 
     PH = {"Authorization": f"Bearer {parent_session}"}
     children = client.get("/parent/children", headers=PH).json()["children"]

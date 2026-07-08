@@ -11,10 +11,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, Role, TimestampMixin, native_enum, uuid_pk
+from .base import Base, Role, TimestampMixin, native_enum, utcnow, uuid_pk
 
 
 class Organization(Base):
@@ -25,7 +25,7 @@ class Organization(Base):
     domain: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, default=None)
     external_ref: Mapped[Optional[str]] = mapped_column(String, default=None)  # Google customer id
     seats: Mapped[Optional[int]] = mapped_column(Integer, default=None)  # sièges sous licence
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class Classroom(Base):
@@ -36,7 +36,7 @@ class Classroom(Base):
     )
     name: Mapped[str] = mapped_column(String)
     external_ref: Mapped[Optional[str]] = mapped_column(String, index=True, default=None)  # group id
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class AppUser(Base, TimestampMixin):
@@ -48,7 +48,7 @@ class AppUser(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     external_ref: Mapped[Optional[str]] = mapped_column(String, index=True, default=None)  # id IdP/annuaire
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class Membership(Base):
@@ -127,7 +127,7 @@ class TenantIntegration(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String, default="pending")
     admin_email: Mapped[Optional[str]] = mapped_column(String, default=None)  # impersonation
     customer_id: Mapped[Optional[str]] = mapped_column(String, default=None)
-    last_sync_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
     last_error: Mapped[Optional[str]] = mapped_column(String, default=None)
 
 
@@ -145,5 +145,5 @@ class RosterRun(Base):
     pending_deactivations: Mapped[int] = mapped_column(Integer, default=0)  # retenues (garde-fou)
     error_count: Mapped[int] = mapped_column(Integer, default=0)
     summary: Mapped[Optional[str]] = mapped_column(String, default=None)
-    started_at: Mapped[datetime] = mapped_column(default=datetime.now)
-    finished_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -87,7 +87,7 @@ def main() -> None:
     # AC5 — soft delete masqué par requête par défaut
     with SessionLocal(bind=engine) as s:
         c = _comp("SOFT"); s.add(c); s.commit()
-        c.deleted_at = datetime(2026, 1, 1); s.commit()
+        c.deleted_at = datetime(2026, 1, 1, tzinfo=timezone.utc); s.commit()
         total = s.execute(
             select(func.count()).select_from(Competency).where(Competency.code == PFX + "SOFT")
         ).scalar_one()

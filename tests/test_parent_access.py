@@ -91,11 +91,16 @@ def test_magic_link_opens_session():
     client = _client()
     client.post("/parent/request-link", json={"email": "mom@home.com"})
     tok = _link_token(FAKE.sent[0]["html"])
+    # 1) GET du lien email : validation SANS consommation (anti-préchargement) →
+    #    page de confirmation, jeton du LIEN dans le fragment (jamais journalisé).
     r = client.get(f"/parent/login?token={tok}", follow_redirects=False)
     assert r.status_code == 302
     loc = r.headers["location"]
-    assert loc.startswith("http://localhost:3000/oauth/callback#token=")
-    parse_token(loc.split("#token=")[1], purpose="session")  # session applicative valide
+    assert loc.startswith("http://localhost:3000/parent/confirm#token=")
+    # 2) Clic humain « Continuer » : le POST consomme le jti et ouvre la session.
+    confirm = client.post("/parent/login/confirm", json={"token": loc.split("#token=")[1]})
+    assert confirm.status_code == 200
+    parse_token(confirm.json()["token"], purpose="session")  # session applicative valide
     _clear()
 
 

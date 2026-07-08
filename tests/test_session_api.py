@@ -17,7 +17,7 @@ from src.models.base import (
 )
 from src.models.competency import Competency, CompetencyPrerequisite
 from src.models.item import Item
-from src.models.measurement import Response, School, Student
+from src.models.measurement import Response, School, Student, StudentCompetencyAbility
 from src.models.org import AppUser, Membership
 from src.models.session import AssessmentSession
 from src.rbac.auth import make_token
@@ -110,13 +110,39 @@ def test_ac5_double_answer_rejected():
     app.dependency_overrides.clear()
 
 
+def test_completed_session_rejects_response_409():
+    # Revue 2026-07-08 : une session TERMINÉE (should_stop) n'accepte plus AUCUNE réponse —
+    # sinon un client pouvait POSTer après l'arrêt et bouger l'Elo hors flux adaptatif.
+    client, engine, ids = _client()
+    sid = _start(client, ids)
+    item_id = client.get(f"/sessions/{sid}/next-item", headers=_h(ids)).json()["item_id"]
+    with _q(engine) as s:  # la session se termine côté serveur (décision should_stop)
+        sess = s.get(AssessmentSession, uuid.UUID(sid))
+        sess.status = "completed"; sess.stop_reason = "confidence"; s.commit()
+    r = client.post(f"/sessions/{sid}/responses",
+                    json={"item_id": item_id, "selected": ANSWER}, headers=_h(ids))
+    assert r.status_code == 409
+    # next-item, lui, garde son contrat de FIN de flux ({done: true}, pas un 409)
+    nx = client.get(f"/sessions/{sid}/next-item", headers=_h(ids))
+    assert nx.status_code == 200 and nx.json()["done"] is True
+    with _q(engine) as s:  # aucun effet : ni Response ni mouvement d'Elo
+        assert s.execute(select(func.count()).select_from(Response)).scalar_one() == 0
+        assert s.execute(select(func.count()).select_from(StudentCompetencyAbility)).scalar_one() == 0
+    app.dependency_overrides.clear()
+
+
 def test_server_side_grading_wrong_answer():
     client, engine, ids = _client()
     sid = _start(client, ids)
     item_id = client.get(f"/sessions/{sid}/next-item", headers=_h(ids)).json()["item_id"]
     client.post(f"/sessions/{sid}/responses", json={"item_id": item_id, "selected": "1/4"}, headers=_h(ids))
     with _q(engine) as s:
-        assert s.get(Item, ids["active"]).difficulty_elo > 1500.0
+        # corrigée CÔTÉ SERVEUR : "1/4" ≠ clé "3/4" → is_correct False, ability pénalisée
+        # (la difficulté item, elle, reste gelée au prior pendant le burn-in).
+        resp = s.execute(select(Response)).scalar_one()
+        assert resp.is_correct is False
+        ab = s.execute(select(StudentCompetencyAbility)).scalars().first()
+        assert ab is not None and ab.ability_elo < 1500.0
     app.dependency_overrides.clear()
 
 

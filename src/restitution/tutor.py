@@ -21,7 +21,10 @@ def explain_diagnosis(d: Diagnosis, label_en: Dict[str, str], label_ar: Dict[str
     """Transforme un diagnostic causal en explication bilingue « pourquoi je travaille ça ».
 
     `d.chain` = [gap, …, root_cause]. On la lit racine → lacune : chaque maillon amont
-    « débloque » le suivant. Sortie structurée (titre + étapes), prête à afficher.
+    « débloque » le suivant. Depuis le fix clôture amont (revue 2026-07-07), la chaîne
+    peut traverser un maillon déjà maîtrisé (ancêtre transitif cassé derrière un prérequis
+    direct maîtrisé) : le récit de dépendance reste vrai maillon par maillon.
+    Sortie structurée (titre + étapes), prête à afficher.
     """
     le = lambda c: label_en.get(c, c)  # noqa: E731
     la = lambda c: label_ar.get(c, c)  # noqa: E731

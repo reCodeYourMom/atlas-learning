@@ -79,6 +79,46 @@ def test_select_next_end_to_end():
     assert comp == "C" and item == "i3"
 
 
+# --- revue 2026-07-07 : compétence sans item actif → skip, jamais ValueError/500 ---
+
+def test_review_competency_without_items_is_skipped():
+    # X serait prioritaire (confiance plus basse) mais n'a AUCUN item actif → skippée, on sert Y
+    x = CompetencyState("X", 1500, 0.1, 0)
+    y = CompetencyState("Y", 1500, 0.5, 5)
+    comp, item = select_next([x, y], _items("Y"), seen_item_ids=set())
+    assert comp == "Y" and item is not None
+
+
+def test_review_no_items_anywhere_returns_none_none():
+    # aucune cible servable → (None, None) pour une fin de session propre (avant : min([]) → 500)
+    cand = [CompetencyState("X", 1500, 0.1, 0)]
+    assert select_next(cand, [], seen_item_ids=set()) == (None, None)
+
+
+def test_review_pick_competency_empty_candidates_returns_none():
+    assert pick_competency([]) is None  # avant : ValueError sur min([])
+
+
+def test_review_quarantined_only_competency_is_skipped():
+    # X n'a que des items quarantined → non servable → on passe à Y
+    x = CompetencyState("X", 1500, 0.1, 0)
+    y = CompetencyState("Y", 1500, 0.5, 5)
+    items = [ItemRef("iq", "X", 1500.0, "quarantined")] + _items("Y")
+    comp, item = select_next([x, y], items, seen_item_ids=set())
+    assert comp == "Y" and item != "iq"
+
+
+def test_review_redirect_to_itemless_prereq_falls_back_to_target():
+    # prérequis HARD clairement échoué mais SANS item actif → on retombe sur la cible
+    # d'origine (mieux vaut la mesurer directement que clore la session à tort)
+    target = CompetencyState("B", 1500, 0.1, 0)
+    prereq = CompetencyState("A", 1100, 0.8, 15)  # échoué (< FAIL_ELO) mais banque vide
+    comp, item = select_next([target], _items("B"), set(),
+                             hard_prereqs={"B": ["A"]},
+                             states_by_id={"B": target, "A": prereq})
+    assert comp == "B" and item is not None
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

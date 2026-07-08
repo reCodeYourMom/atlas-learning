@@ -10,10 +10,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, TimestampMixin, uuid_pk
+from .base import Base, TimestampMixin, utcnow, uuid_pk
 
 
 class School(Base):
@@ -24,7 +24,7 @@ class School(Base):
         ForeignKey("organization.id", ondelete="CASCADE"), default=None, index=True
     )
     external_ref: Mapped[Optional[str]] = mapped_column(String, index=True, default=None)  # orgUnit id
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class Student(Base):
@@ -42,12 +42,19 @@ class Student(Base):
         ForeignKey("app_user.id", ondelete="SET NULL"), default=None, index=True
     )
     external_ref: Mapped[Optional[str]] = mapped_column(String, default=None)
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
 
 class Response(Base):
     """Événement de réponse — append-only (ni update, ni delete)."""
     __tablename__ = "response"
+    # Anti double-submit atomique (revue 2026-07-07) : au plus UNE réponse par
+    # (session_id, item_id) — le doublon simultané échoue au flush (IntegrityError → 409).
+    # Les réponses HORS session (session_id NULL : seeds, moteur appelé directement) ne
+    # sont pas concernées : SQL (Postgres comme SQLite) autorise les NULL multiples.
+    __table_args__ = (
+        UniqueConstraint("session_id", "item_id", name="uq_response_session_item"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     school_id: Mapped[uuid.UUID] = mapped_column(
@@ -63,7 +70,7 @@ class Response(Base):
     is_correct: Mapped[bool] = mapped_column(Boolean)
     response_time_ms: Mapped[Optional[int]] = mapped_column(Integer, default=None)
     session_id: Mapped[Optional[uuid.UUID]] = mapped_column(default=None)  # FK session = Epic 4
-    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class StudentCompetencyAbility(Base, TimestampMixin):
@@ -82,4 +89,4 @@ class StudentCompetencyAbility(Base, TimestampMixin):
     ability_elo: Mapped[float] = mapped_column(Float)
     n_direct: Mapped[int] = mapped_column(Integer, default=0)       # réponses DIRECTES
     confidence: Mapped[float] = mapped_column(Float, default=0.0)   # [0..1]
-    last_measured_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    last_measured_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)

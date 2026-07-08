@@ -12,6 +12,7 @@ from typing import Callable, List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.models.base import ensure_utc
 from src.models.org import Organization, TenantIntegration
 
 _SYNCABLE = ("connected", "pending")  # on (re)tente aussi les pending (1re sync post-install)
@@ -37,13 +38,16 @@ def sync_all(
     """
     from src.rostering.sync import sync_directory  # import local : évite tout cycle
 
+    due_before = ensure_utc(due_before)  # naïf accepté (tests) → réinterprété UTC
+
     integs = s.execute(
         select(TenantIntegration).where(TenantIntegration.status.in_(_SYNCABLE))
     ).scalars().all()
 
     results: List[TenantSyncResult] = []
     for integ in integs:
-        if due_before and integ.last_sync_at and integ.last_sync_at >= due_before:
+        # ensure_utc : last_sync_at relu de SQLite est naïf (convention UTC).
+        if due_before and integ.last_sync_at and ensure_utc(integ.last_sync_at) >= due_before:
             continue  # déjà à jour sur cette fenêtre
         org = s.get(Organization, integ.organization_id)
         if org is None or org.deleted_at is not None:

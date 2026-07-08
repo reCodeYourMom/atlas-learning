@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from src.api.session_service import (
     AlreadyAnswered,
+    SessionCompleted,
     grade_answer,
     next_item,
     start_session,
@@ -39,7 +40,7 @@ from src.api.views_service import (
     tutor_explanation,
 )
 from src.audit import log_action
-from src.db import make_engine
+from src.db import active, make_engine
 from src.items import review
 from src.items.arabic import (
     ALLAM_MODEL,
@@ -57,7 +58,12 @@ from src.models.org import (
     TenantIntegration,
 )
 from src.models.session import AssessmentSession
-from src.rbac.auth import make_token, parse_token
+from src.rbac.auth import make_single_use_token, make_token, parse_token
+from src.rbac.single_use import (
+    TokenAlreadyUsedError,
+    consume_single_use_token,
+    peek_single_use_token,
+)
 from src.compliance import service as compliance
 from src.licensing import service as licensing
 from src.notify.email import build_email_sender
@@ -112,13 +118,23 @@ def get_context(authorization: str = Header(None), s: Session = Depends(get_db))
         user_id = parse_token(authorization[len("Bearer "):])
     except ValueError:
         raise HTTPException(status_code=401, detail="jeton invalide")
-    return build_user_context(s, uuid.UUID(user_id))
+    # Le jeton de session (TTL 1 h) peut survivre à l'offboarding : on re-vérifie l'état
+    # RÉEL du compte à CHAQUE requête — soft-deleted ou désactivé (roster sync, départ,
+    # droit à l'oubli) → 401 immédiat, sans attendre l'expiration (revue 2026-07-08).
+    # Les jetons de purpose spécial (parent_login, admin_login, oidc_state…) ne passent
+    # jamais ici : parse_token (purpose="session") les rejette déjà, et leurs endpoints
+    # de login font ce même contrôle AVANT d'émettre le jeton de session.
+    user = s.get(AppUser, uuid.UUID(user_id))
+    if user is None or user.deleted_at is not None or not user.is_active:
+        raise HTTPException(status_code=401, detail="compte inactif ou supprimé")
+    return build_user_context(s, user.id)
 
 
 # ---------- authentification = SSO uniquement ----------
 #
 # Plus de `/login` mot de passe ni de MFA TOTP applicative : l'identité passe par l'IdP
-# (OIDC, plus bas). Deux exceptions SANS mot de passe, par liens magiques signés HMAC :
+# (OIDC, plus bas). Deux exceptions SANS mot de passe, par liens magiques signés HMAC,
+# À USAGE UNIQUE (jti consommé atomiquement, cf. src/rbac/single_use.py) :
 #   - parents (hors Workspace scolaire) ;
 #   - super-admin Atlas (équipe éditeur), qui ne peut pas dépendre de l'IdP d'un client.
 #
@@ -534,11 +550,12 @@ def get_llm_client():
     return GroqClient(model=ALLAM_MODEL)
 
 
-_PARENT_LINK_TTL = 14 * 24 * 3600  # 14 jours : le parent reclique / redemande quand il veut
+_PARENT_LINK_TTL = 14 * 24 * 3600  # 14 jours pour cliquer UNE fois (single-use) ; ensuite le parent redemande un lien
 
 
 def _send_parent_link(sender, user: AppUser) -> None:
-    token = make_token(str(user.id), purpose="parent_login", ttl_s=_PARENT_LINK_TTL)
+    # Lien magique SINGLE-USE : le jti est consommé au premier login (anti-rejeu).
+    token = make_single_use_token(str(user.id), purpose="parent_login", ttl_s=_PARENT_LINK_TTL)
     link = f"{_web_base()}/api/parent/login?token={token}"
     subject, html, text = parent_login_email(link)
     sender.send(to=user.email, subject=subject, html=html, text=text)
@@ -565,21 +582,61 @@ def parent_request_link(body: ParentRequestIn, s: Session = Depends(get_db),
     return {"ok": True}
 
 
+class MagicLinkConfirmIn(BaseModel):
+    token: str
+
+
 @app.get("/parent/login")
 def parent_login(token: str, s: Session = Depends(get_db)):
-    """Valide le lien magique → ouvre une session → redirige vers l'espace enfant."""
+    """Valide le lien magique SANS le consommer → étape de confirmation humaine.
+
+    Anti-préchargement (revue adversariale 2026-07-07) : les scanners d'emails
+    (Outlook SafeLinks, prévisualisation) suivent les liens en GET — si le GET
+    consommait le jti, 100 % des liens de ces tenants seraient brûlés AVANT le clic
+    du parent. Ce GET est donc IDEMPOTENT et sans effet de bord (lecture seule) ;
+    la consommation atomique du jti se fait au POST /parent/login/confirm, déclenché
+    par le bouton « Continuer » de la page de confirmation (action humaine).
+    """
     web = _web_base()
     try:
-        uid = parse_token(token, purpose="parent_login")
+        uid = peek_single_use_token(s, token, purpose="parent_login")
+    except TokenAlreadyUsedError:
+        # Lien déjà consommé (rejeu) : refus vers l'UI — cet endpoint s'ouvre dans un
+        # NAVIGATEUR depuis l'email, un 401 JSON brut laisserait le parent (persona la
+        # moins technique) sans moyen de redemander un lien. Même redirection qu'avant.
+        return RedirectResponse(f"{web}/parent?error=used", status_code=302)
     except ValueError:
         return RedirectResponse(f"{web}/parent?error=invalid", status_code=302)
     user = s.get(AppUser, uuid.UUID(uid))
     if user is None or not user.is_active or user.deleted_at is not None:
         return RedirectResponse(f"{web}/parent?error=invalid", status_code=302)
+    # Jeton de LIEN passé dans le fragment (#…) : jamais envoyé aux serveurs ni journalisé.
+    return RedirectResponse(f"{web}/parent/confirm#token={token}", status_code=302)
+
+
+@app.post("/parent/login/confirm")
+def parent_login_confirm(body: MagicLinkConfirmIn, s: Session = Depends(get_db)):
+    """CONSOMME le lien magique (single-use, atomique) → jeton de session parent.
+
+    Déclenché par le bouton « Continuer » (action humaine — les scanners d'emails ne
+    POSTent pas). `detail` = code machine (`used` / `invalid`) : le front le mappe sur
+    la redirection UI (`/parent?error=…`), cohérente avec le GET.
+    """
+    try:
+        uid = consume_single_use_token(s, body.token, purpose="parent_login")
+    except TokenAlreadyUsedError:
+        raise HTTPException(status_code=401, detail="used")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="invalid")
+    # Le jeton est déjà brûlé (commit dans consume) : même si les contrôles suivants
+    # échouent, un rejeu ne pourra jamais réussir.
+    user = s.get(AppUser, uuid.UUID(uid))
+    if user is None or not user.is_active or user.deleted_at is not None:
+        raise HTTPException(status_code=401, detail="invalid")
     log_action(s, action="parent.login", user_id=user.id)
     s.commit()
-    session_token = make_token(str(user.id))   # la racine route le parent → /parent/{enfant}
-    return RedirectResponse(f"{web}/oauth/callback#token={session_token}", status_code=302)
+    # La racine route le parent → /parent/{enfant}.
+    return {"token": make_token(str(user.id))}
 
 
 # ---------- accès super-admin Atlas (équipe éditeur) : lien magique interne ----------
@@ -605,7 +662,8 @@ def admin_request_link(body: ParentRequestIn, s: Session = Depends(get_db),
     if user is not None and user.is_active:
         ctx = build_user_context(s, user.id)
         if Role.SUPER_ADMIN in ctx.roles:
-            token = make_token(str(user.id), purpose="admin_login", ttl_s=_ADMIN_LINK_TTL)
+            token = make_single_use_token(str(user.id), purpose="admin_login",
+                                          ttl_s=_ADMIN_LINK_TTL)
             link = f"{_web_base()}/api/admin/login?token={token}"
             subject, html, text = admin_login_email(link)
             sender.send(to=user.email, subject=subject, html=html, text=text)
@@ -616,22 +674,48 @@ def admin_request_link(body: ParentRequestIn, s: Session = Depends(get_db),
 
 @app.get("/admin/login")
 def admin_login(token: str, s: Session = Depends(get_db)):
-    """Valide le lien magique éditeur → ouvre une session SUPER_ADMIN."""
+    """Valide le lien magique éditeur SANS le consommer → confirmation humaine.
+
+    Même patron anti-préchargement que /parent/login : GET idempotent (lecture seule),
+    consommation atomique au POST /admin/login/confirm (bouton « Continuer »).
+    """
     web = _web_base()
     try:
-        uid = parse_token(token, purpose="admin_login")
+        uid = peek_single_use_token(s, token, purpose="admin_login")
+    except TokenAlreadyUsedError:
+        # Rejeu → UI (même logique que /parent/login : endpoint navigateur, pas d'API).
+        return RedirectResponse(f"{web}/login?admin_error=used", status_code=302)
     except ValueError:
         return RedirectResponse(f"{web}/login?admin_error=invalid", status_code=302)
     user = s.get(AppUser, uuid.UUID(uid))
     if user is None or not user.is_active or user.deleted_at is not None:
         return RedirectResponse(f"{web}/login?admin_error=invalid", status_code=302)
-    # Re-vérifie le rôle au moment de la connexion (révocation possible entre-temps).
+    # Contrôle du rôle en LECTURE (le POST re-vérifie au moment de la connexion).
     if Role.SUPER_ADMIN not in build_user_context(s, user.id).roles:
         return RedirectResponse(f"{web}/login?admin_error=forbidden", status_code=302)
+    # Jeton de LIEN dans le fragment (#…) : jamais envoyé aux serveurs ni journalisé.
+    return RedirectResponse(f"{web}/login/confirm#token={token}", status_code=302)
+
+
+@app.post("/admin/login/confirm")
+def admin_login_confirm(body: MagicLinkConfirmIn, s: Session = Depends(get_db)):
+    """CONSOMME le lien magique éditeur (single-use) → jeton de session SUPER_ADMIN."""
+    try:
+        uid = consume_single_use_token(s, body.token, purpose="admin_login")
+    except TokenAlreadyUsedError:
+        raise HTTPException(status_code=401, detail="used")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="invalid")
+    # Jeton brûlé dès la consommation : les contrôles suivants ne le « rendent » pas.
+    user = s.get(AppUser, uuid.UUID(uid))
+    if user is None or not user.is_active or user.deleted_at is not None:
+        raise HTTPException(status_code=401, detail="invalid")
+    # Re-vérifie le rôle au moment de la connexion (révocation possible entre-temps).
+    if Role.SUPER_ADMIN not in build_user_context(s, user.id).roles:
+        raise HTTPException(status_code=403, detail="forbidden")
     log_action(s, action="admin.login", user_id=user.id)
     s.commit()
-    session_token = make_token(str(user.id))
-    return RedirectResponse(f"{web}/oauth/callback#token={session_token}", status_code=302)
+    return {"token": make_token(str(user.id))}
 
 
 @app.post("/admin/parents/invite")
@@ -661,6 +745,9 @@ def parent_children(ctx: UserContext = Depends(get_context), s: Session = Depend
         st = s.get(Student, sid)
         if st is None or st.deleted_at is not None:
             continue
+        school = s.get(School, st.school_id)
+        if school is None or school.deleted_at is not None:   # école supprimée → enfant masqué
+            continue
         label = st.external_ref or "—"
         if st.user_id:
             child = s.get(AppUser, st.user_id)
@@ -685,7 +772,10 @@ def list_guardians(student_id: uuid.UUID, ctx: UserContext = Depends(get_context
     rows = s.execute(
         select(AppUser, ParentStudent.source)
         .join(ParentStudent, ParentStudent.user_id == AppUser.id)
-        .where(ParentStudent.student_id == student_id)
+        # Parent soft-deleted : le lien est conservé (réactivable par add_guardian)
+        # mais son email n'est plus exposé au staff (revue 2026-07-08).
+        .where(ParentStudent.student_id == student_id,
+               AppUser.deleted_at.is_(None))
     ).all()
     return {"guardians": [{"user_id": str(u.id), "email": u.email, "source": src}
                           for (u, src) in rows]}
@@ -768,7 +858,7 @@ def me(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     classrooms = []
     for cid in ctx.classroom_ids:
         cls = s.get(Classroom, cid)
-        if cls is not None:
+        if cls is not None and cls.deleted_at is None:
             classrooms.append({"id": str(cls.id), "name": cls.name, "school_id": str(cls.school_id)})
 
     schools = []
@@ -776,13 +866,13 @@ def me(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     # admin : écoles de son périmètre ; enseignant : écoles de ses classes
     for cid in ctx.classroom_ids:
         cls = s.get(Classroom, cid)
-        if cls is not None:
+        if cls is not None and cls.deleted_at is None:
             seen.add(cls.school_id)
     for sid in seen:
         sch = s.get(School, sid)
-        if sch is not None:
+        if sch is not None and sch.deleted_at is None:
             schools.append({"id": str(sch.id), "name": sch.name})
-            for cls in s.execute(select(Classroom).where(Classroom.school_id == sch.id)).scalars():
+            for cls in s.execute(active(Classroom).where(Classroom.school_id == sch.id)).scalars():
                 if not any(c["id"] == str(cls.id) for c in classrooms) \
                         and ctx.has(Role.PED_ADMIN, Role.IT_ADMIN, Role.SUPER_ADMIN):
                     classrooms.append({"id": str(cls.id), "name": cls.name,
@@ -799,8 +889,12 @@ def me(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
 
 
 def _authorize_student(ctx: UserContext, s: Session, student_id: uuid.UUID) -> Student:
-    st = s.get(Student, student_id)
+    # Soft delete filtré (revue sécurité) : un élève supprimé — ou dont l'école est
+    # supprimée — n'est plus accessible par AUCUN endpoint (sessions, vues, parent).
+    st = s.execute(active(Student).where(Student.id == student_id)).scalar_one_or_none()
     if st is None:
+        raise HTTPException(status_code=404, detail="élève introuvable")
+    if s.execute(active(School).where(School.id == st.school_id)).scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="élève introuvable")
     # Ensemble des classes de l'élève (principale + spécialités) pour le contrôle enseignant.
     class_ids = set(s.execute(
@@ -811,6 +905,24 @@ def _authorize_student(ctx: UserContext, s: Session, student_id: uuid.UUID) -> S
     if not can_access_student(ctx, st.id, st.school_id, class_ids):
         raise HTTPException(status_code=403, detail="accès refusé à cet élève")
     return st
+
+
+def _get_live_classroom(s: Session, classroom_id: uuid.UUID) -> Classroom:
+    """Classe vivante (soft delete filtré, y compris l'école porteuse) ou 404."""
+    cls = s.execute(active(Classroom).where(Classroom.id == classroom_id)).scalar_one_or_none()
+    if cls is None:
+        raise HTTPException(status_code=404, detail="classe introuvable")
+    if s.execute(active(School).where(School.id == cls.school_id)).scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="classe introuvable")
+    return cls
+
+
+def _get_live_school(s: Session, school_id: uuid.UUID) -> School:
+    """École vivante (soft delete filtré) ou 404."""
+    sch = s.execute(active(School).where(School.id == school_id)).scalar_one_or_none()
+    if sch is None:
+        raise HTTPException(status_code=404, detail="établissement introuvable")
+    return sch
 
 
 # ---------- session (protégée RBAC) ----------
@@ -868,15 +980,17 @@ def post_response(session_id: uuid.UUID, body: ResponseIn,
         return {**result, "was_correct": is_correct}
     except AlreadyAnswered:
         raise HTTPException(status_code=409, detail="item déjà répondu dans cette session")
+    except SessionCompleted:
+        # Session terminée : plus aucune réponse acceptée (l'Elo ne bouge que dans le
+        # flux adaptatif) — next-item, lui, continue de répondre {done: true}.
+        raise HTTPException(status_code=409, detail="session terminée")
 
 
 @app.get("/classrooms/{classroom_id}/gaps")
 def classroom_gaps(classroom_id: uuid.UUID, ctx: UserContext = Depends(get_context),
                    s: Session = Depends(get_db)):
     """T5.4 — vue enseignant : lacunes de SA classe (RBAC)."""
-    cls = s.get(Classroom, classroom_id)
-    if cls is None:
-        raise HTTPException(status_code=404, detail="classe introuvable")
+    cls = _get_live_classroom(s, classroom_id)
     if not can_access_classroom(ctx, classroom_id, cls.school_id):
         raise HTTPException(status_code=403, detail="accès refusé à cette classe")
     log_action(s, action="classroom.view_gaps", school_id=cls.school_id, user_id=ctx.user_id,
@@ -889,9 +1003,7 @@ def classroom_gaps(classroom_id: uuid.UUID, ctx: UserContext = Depends(get_conte
 def classroom_digest(classroom_id: uuid.UUID, days: int = 7,
                      ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     """Digest hebdomadaire enseignant (Mouvement 01) : activité, lacunes émergentes, priorité #1."""
-    cls = s.get(Classroom, classroom_id)
-    if cls is None:
-        raise HTTPException(status_code=404, detail="classe introuvable")
+    cls = _get_live_classroom(s, classroom_id)
     if not can_access_classroom(ctx, classroom_id, cls.school_id):
         raise HTTPException(status_code=403, detail="accès refusé à cette classe")
     log_action(s, action="classroom.view_digest", school_id=cls.school_id, user_id=ctx.user_id,
@@ -904,9 +1016,7 @@ def classroom_digest(classroom_id: uuid.UUID, days: int = 7,
 def classroom_students(classroom_id: uuid.UUID, ctx: UserContext = Depends(get_context),
                        s: Session = Depends(get_db)):
     """Liste des élèves d'une classe (enseignant/admin)."""
-    cls = s.get(Classroom, classroom_id)
-    if cls is None:
-        raise HTTPException(status_code=404, detail="classe introuvable")
+    cls = _get_live_classroom(s, classroom_id)
     if not can_access_classroom(ctx, classroom_id, cls.school_id):
         raise HTTPException(status_code=403, detail="accès refusé à cette classe")
     return {"classroom_id": str(classroom_id), "name": cls.name,
@@ -1050,6 +1160,7 @@ def admin_arabic_validate(item_id: uuid.UUID, ctx: UserContext = Depends(get_con
 def school_overview_ep(school_id: uuid.UUID, ctx: UserContext = Depends(get_context),
                        s: Session = Depends(get_db)):
     """T5.5 — vue admin pédagogique : agrégat établissement (RBAC + tenant)."""
+    _get_live_school(s, school_id)   # école soft-deleted → 404 (soft delete filtré)
     if not can_access_school(ctx, school_id):
         raise HTTPException(status_code=403, detail="accès refusé à cet établissement")
     log_action(s, action="school.view_overview", school_id=school_id, user_id=ctx.user_id,
@@ -1062,6 +1173,7 @@ def school_overview_ep(school_id: uuid.UUID, ctx: UserContext = Depends(get_cont
 def school_proof_ep(school_id: uuid.UUID, window_days: int = 30,
                     ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     """Surfaces de preuve (Mouvement 03) : avant/après cohorte + gains + projection trajectoire."""
+    _get_live_school(s, school_id)   # école soft-deleted → 404 (soft delete filtré)
     if not can_access_school(ctx, school_id):
         raise HTTPException(status_code=403, detail="accès refusé à cet établissement")
     log_action(s, action="school.view_proof", school_id=school_id, user_id=ctx.user_id,

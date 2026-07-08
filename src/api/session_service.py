@@ -5,10 +5,10 @@ Testable sans HTTP. Les endpoints FastAPI (app.py) ne font qu'appeler ces foncti
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.audit import log_action
@@ -16,7 +16,7 @@ from src.engine.selection import CompetencyState, ItemRef, select_next
 from src.engine.service import ELO_START, on_response
 from src.engine.stopping import StopConfig, should_stop
 from src.items.quarantine import active_pool
-from src.models.base import EdgeType
+from src.models.base import EdgeType, ensure_utc, utcnow
 from src.models.competency import CompetencyPrerequisite
 from src.models.item import Item
 from src.models.measurement import Response, StudentCompetencyAbility
@@ -25,6 +25,22 @@ from src.models.session import AssessmentSession
 
 class AlreadyAnswered(Exception):
     """Item déjà répondu dans cette session (anti double-comptage, AC5)."""
+
+
+class SessionCompleted(Exception):
+    """Session terminée : toute nouvelle réponse est refusée (409 côté API).
+
+    Contrairement à next_item (qui répond {done: true} — contrat de FIN de flux),
+    accepter un POST de réponse ici bougerait l'Elo HORS du flux adaptatif, alors que
+    l'arrêt a été décidé par should_stop (revue 2026-07-08).
+    """
+
+
+# Namespace UUIDv5 du projet pour dériver un response_id DÉTERMINISTE de
+# (session_id, item_id) : rejouer le même submit (double-clic, retry réseau) produit
+# le MÊME id, que le moteur reconnaît → son idempotence par response_id devient
+# effective de bout en bout (revue 2026-07-07).
+RESPONSE_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "atlas-learning/response")
 
 
 def _public_content(content: Optional[dict]) -> Optional[dict]:
@@ -105,7 +121,7 @@ def _build(s: Session, session: AssessmentSession):
 def _finish(s: Session, session: AssessmentSession, reason: str) -> dict:
     session.status = "completed"
     session.stop_reason = reason
-    session.ended_at = datetime.now()
+    session.ended_at = utcnow()
     s.commit()
     return {"done": True, "reason": reason}
 
@@ -116,7 +132,9 @@ def next_item(s: Session, session: AssessmentSession, config: StopConfig = StopC
 
     candidates, states_by_id, items, hard_prereqs = _build(s, session)
     n_served = len(_seen_item_ids(s, session.id))
-    elapsed = (datetime.now() - session.started_at).total_seconds()
+    # ensure_utc : started_at relu de SQLite est naïf (convention UTC) → sans
+    # normalisation, la soustraction aware − naïf lèverait TypeError.
+    elapsed = (utcnow() - ensure_utc(session.started_at)).total_seconds()
     decision = should_stop([c.confidence for c in candidates], n_served, elapsed, config)
     if decision.stop:
         return _finish(s, session, decision.reason)
@@ -143,12 +161,54 @@ def submit_response(
     is_correct: bool, response_time_ms: Optional[int] = None,
     config: StopConfig = StopConfig(),
 ) -> dict:
+    # Session terminée → refus AVANT tout effet (revue 2026-07-08) : sans cette garde,
+    # un client pouvait POSTer des réponses après l'arrêt et bouger l'Elo hors flux.
+    if session.status != "active":
+        raise SessionCompleted(str(session.id))
+    # Garde rapide (non atomique) : rejette le double-submit déjà commité.
     if item_id in _seen_item_ids(s, session.id):
         raise AlreadyAnswered(str(item_id))
-    resp = on_response(
-        s, student_id=session.student_id, item_id=item_id, is_correct=is_correct,
-        school_id=session.school_id, session_id=session.id, response_time_ms=response_time_ms,
-    )
+    # response_id déterministe : le rejeu du même (session, item) produit le même id
+    # → le moteur le reconnaît et ne réapplique RIEN (plus de uuid4 neuf à chaque appel).
+    response_id = uuid.uuid5(RESPONSE_ID_NAMESPACE, f"{session.id}:{item_id}")
+    def _apply():
+        return on_response(
+            s, student_id=session.student_id, item_id=item_id, is_correct=is_correct,
+            school_id=session.school_id, session_id=session.id,
+            response_time_ms=response_time_ms, response_id=response_id,
+        )
+
+    try:
+        resp = _apply()
+    except IntegrityError:
+        # on_response a déjà fait le rollback complet. DEUX causes distinctes
+        # (revue adversariale 2026-07-07) — les confondre perdait des réponses :
+        #   1. double-submit : la PK du response_id déterministe / la contrainte unique
+        #      (session_id, item_id) a rejeté le doublon → la Response EXISTE déjà
+        #      (commitée par la transaction gagnante) → même contrat que la garde : 409 ;
+        #   2. création CONCURRENTE d'une ligne ability manquante (PK composite
+        #      student/competency, cf. engine/service.py) : la Response n'a PAS été
+        #      enregistrée — un 409 la perdrait silencieusement. La transaction adverse
+        #      a commité la ligne → on REJOUE une fois (le SELECT FOR UPDATE verrouille
+        #      désormais la ligne existante).
+        if s.get(Response, response_id) is not None:
+            raise AlreadyAnswered(str(item_id))
+        try:
+            resp = _apply()
+        except IntegrityError:
+            # Le rejeu perd à son tour : si la Response existe maintenant, c'est un
+            # vrai double-submit (409) ; sinon on laisse remonter (500 honnête,
+            # le client peut rejouer) plutôt que de prétendre à un doublon.
+            if s.get(Response, response_id) is not None:
+                raise AlreadyAnswered(str(item_id))
+            raise
+    # Rejeu passé SOUS la garde (course) : on_response a reconnu le response_id existant
+    # et n'a RIEN réappliqué (attribut transitoire `replayed`, cf. engine/service.py).
+    # Sans ce test, on ré-émettait une 2e entrée AuditLog 'response.submit' et on
+    # répondait 200 — alors que le même rejeu plus tard donne 409 (sémantique de replay
+    # non déterministe, revue 2026-07-08) → 409 uniforme, zéro audit dupliqué.
+    if getattr(resp, "replayed", False):
+        raise AlreadyAnswered(str(item_id))
     log_action(s, action="response.submit", school_id=session.school_id, resource_type="response",
                resource_id=resp.id, details={"student_id": str(session.student_id),
                                              "item_id": str(item_id), "correct": is_correct})

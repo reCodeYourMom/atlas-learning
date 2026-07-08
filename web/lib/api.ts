@@ -119,6 +119,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
+  // Consommation du lien magique (single-use) : POST déclenché par un clic HUMAIN —
+  // le GET du lien email ne consomme rien (anti-préchargement des scanners d'emails).
+  parentLoginConfirm: (token: string) =>
+    request<{ token: string }>("/parent/login/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+  adminLoginConfirm: (token: string) =>
+    request<{ token: string }>("/admin/login/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
   parentChildren: () => request<{ children: { student_id: string; label: string }[] }>("/parent/children"),
 
   // — Tuteurs gérés par le staff —

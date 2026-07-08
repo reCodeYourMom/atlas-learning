@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import JSON, ForeignKey
+from sqlalchemy import JSON, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
@@ -70,7 +70,7 @@ class Item(Base, TimestampMixin):
     provenance: Mapped[dict] = mapped_column(JSONType, default=dict)
     ar_validated: Mapped[bool] = mapped_column(default=False)
 
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
     @validates("content_en", "content_ar")
     def _validate_content(self, key: str, value):

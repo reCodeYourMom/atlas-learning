@@ -19,7 +19,6 @@ import argparse
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -28,7 +27,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from src.db import SessionLocal, make_engine
-from src.models.base import AnswerFormat
+from src.models.base import AnswerFormat, utcnow
 from src.models.competency import Competency
 from src.models.item import Item, ItemContent
 
@@ -121,7 +120,7 @@ def main() -> None:
                 if not verdict.get("correct", True):
                     judge_fail.append((it, verdict.get("reason", "")))
                     if args.flag:
-                        it.deleted_at = datetime.now()
+                        it.deleted_at = utcnow()
                         it.provenance = {**(it.provenance or {}),
                                          "auto_rejected": True,
                                          "judge_model": JUDGE_MODEL,

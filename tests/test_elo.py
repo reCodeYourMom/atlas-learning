@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.engine.elo import (
+    ITEM_BURN_IN,
     Neighbor,
     confidence,
     expected_score,
@@ -39,11 +40,13 @@ def test_t31_ac3_stable_student_half_amplitude():
 
 
 def test_t31_ac4_item_calibration_half_at_30():
+    # burn-in (revue 2026-07-07) : K item = 0 sous le seuil → difficulté gelée au prior
+    assert k_item(0) == 0.0
     assert approx(k_item(30), 16.0)
     _, item0 = update_elo(1500, 1500, True, 0, 0)
     _, item30 = update_elo(1500, 1500, True, 0, 30)
-    assert approx(1500 - item0, 16.0)                  # à 0 réponse : -16
-    assert approx(1500 - item30, 8.0)                  # à 30 réponses : -8 (moitié)
+    assert approx(1500 - item0, 0.0)                   # à 0 réponse : gelé (burn-in)
+    assert approx(1500 - item30, 8.0)                  # à 30 réponses : -8 (moitié de K_ITEM_BASE/2)
 
 
 def test_t31_ac5_strong_student_easy_item_near_zero():
@@ -52,7 +55,10 @@ def test_t31_ac5_strong_student_easy_item_near_zero():
 
 
 def test_t31_ac6_weighted_mass_invariant():
-    cases = [(1500, 1500, True, 0, 0), (1700, 1300, False, 5, 12), (1200, 1800, True, 25, 50)]
+    # L'invariant ne vaut que HORS burn-in (K_item > 0) et HORS saturation (pas de
+    # clamp aux bornes [0, 4000]) — cas nominaux ci-dessous : loin des bornes, n ≥ seuil.
+    cases = [(1500, 1500, True, 0, ITEM_BURN_IN), (1700, 1300, False, 5, 25),
+             (1200, 1800, True, 25, 50)]
     for ab, di, ok, nd, nr in cases:
         na, ni = update_elo(ab, di, ok, nd, nr)
         inv = (na - ab) / k_student(nd) + (ni - di) / k_item(nr)

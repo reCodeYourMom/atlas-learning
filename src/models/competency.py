@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, ForeignKey, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import (
@@ -47,7 +47,7 @@ class Competency(Base, TimestampMixin):
         default=CompetencyStatus.DRAFT,
     )
 
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
 
     def __repr__(self) -> str:  # aide au debug, pas de magie
         return f"<Competency {self.code} G{self.grade}>"
@@ -75,7 +75,7 @@ class CompetencyPrerequisite(Base):
     )
     weight_version: Mapped[int] = mapped_column(default=1)
 
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self) -> str:
         return f"<Edge {self.source_id}->{self.target_id} {self.edge_type}>"

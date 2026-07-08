@@ -10,7 +10,7 @@ Lancé au boot du backend si PROVISION_ON_BOOT=1 (cf. entrypoint-backend.sh).
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -20,6 +20,7 @@ from sqlalchemy import select
 from src.db import SessionLocal, make_engine
 from src.models.base import (
     AnswerFormat, CompetencyStatus, EdgeType, ItemStatus, Role, Subject, WeightSource,
+    utcnow,
 )
 from src.models.competency import Competency, CompetencyPrerequisite
 from src.models.item import Item
@@ -56,7 +57,7 @@ def _item(comp_id, en, ar, status=ItemStatus.ACTIVE, ar_validated=True):
 
 def main():
     engine = make_engine()
-    now = datetime.now()
+    now = utcnow()
     old, recent = now - timedelta(days=40), now - timedelta(days=3)
     with SessionLocal(bind=engine) as s:
         if s.execute(select(AppUser).where(AppUser.email == ADMIN)).scalar_one_or_none():

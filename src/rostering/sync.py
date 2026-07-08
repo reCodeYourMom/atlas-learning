@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.models.base import Role
+from src.models.base import Role, ensure_utc, utcnow
 from src.models.measurement import School, Student
 from src.models.org import (
     AppUser,
@@ -98,7 +98,7 @@ def sync_directory(
     (les ajouts/maj le sont) et le run est marqué `blocked` avec le nombre en attente.
     `force=True` lève le garde-fou (approbation de l'IT admin).
     """
-    now = now or datetime.now()
+    now = ensure_utc(now) or utcnow()   # naïf accepté (tests) → réinterprété UTC
     run = RosterRun(organization_id=org.id, started_at=now)
     res = SyncResult()
     ou_by_id = {ou.external_id: ou for ou in snapshot.org_units}

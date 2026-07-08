@@ -7,12 +7,12 @@ Ne journalise JAMAIS de PII (énoncés, réponses élève) — seulement qui/quo
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from src.models.audit import AuditLog
+from src.models.base import utcnow
 
 
 def log_action(
@@ -28,7 +28,7 @@ def log_action(
     entry = AuditLog(
         action=action, school_id=school_id, user_id=user_id,
         resource_type=resource_type, resource_id=resource_id,
-        details=details or {}, created_at=datetime.now(),
+        details=details or {}, created_at=utcnow(),
     )
     session.add(entry)
     return entry

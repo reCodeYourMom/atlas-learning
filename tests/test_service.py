@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 import src.engine.service as service
 from src.db import make_engine
+from src.engine.elo import ITEM_BURN_IN
 from src.engine.service import on_response
 from src.models.base import AnswerFormat, Base, CompetencyStatus, EdgeType, Subject, WeightSource
 from src.models.competency import Competency, CompetencyPrerequisite
@@ -43,13 +44,16 @@ def _setup() -> tuple:
 
 def test_ac1_response_updates_ability_and_item():
     s, school, student, a, b, item = _setup()
+    # item sorti du burn-in : sa difficulté doit bouger (gelée au prior sinon, cf. test dédié)
+    item.n_responses = ITEM_BURN_IN
+    s.commit()
     on_response(s, student_id=student.id, item_id=item.id, is_correct=True, school_id=school.id)
     n_resp = s.execute(select(func.count()).select_from(Response)).scalar_one()
     assert n_resp == 1
     ab = s.get(StudentCompetencyAbility, (student.id, b.id))
     assert ab.ability_elo > 1500.0 and ab.n_direct == 1          # ability directe màj
     assert s.get(Item, item.id).difficulty_elo < 1500.0          # item màj (sens inverse)
-    assert s.get(Item, item.id).n_responses == 1
+    assert s.get(Item, item.id).n_responses == ITEM_BURN_IN + 1
 
 
 def test_ac2_rollback_if_propagation_fails():

@@ -16,7 +16,7 @@ Comptes (auth dev sans mot de passe via /dev/login) :
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -28,6 +28,7 @@ from sqlalchemy import create_engine, event
 
 from src.models.base import (
     AnswerFormat, Base, CompetencyStatus, EdgeType, ItemStatus, Role, Subject, WeightSource,
+    utcnow,
 )
 from src.models.competency import Competency, CompetencyPrerequisite
 from src.models.item import Item
@@ -37,7 +38,7 @@ from src.models.org import (
 )
 from sqlalchemy.orm import Session
 
-NOW = datetime.now()
+NOW = utcnow()
 OLD = NOW - timedelta(days=40)      # période « avant » (hors fenêtre 30j)
 RECENT = NOW - timedelta(days=3)    # « cette semaine » (digest + après)
 

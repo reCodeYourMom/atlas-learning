@@ -18,8 +18,9 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.models.base import ensure_utc, utcnow
 from src.models.competency import Competency
-from src.models.measurement import Response, StudentCompetencyAbility
+from src.models.measurement import Response, Student, StudentCompetencyAbility
 from src.restitution.diagnosis import MASTERY_ELO
 from src.restitution.scale import DEFAULT_ANCHORS
 
@@ -42,7 +43,7 @@ def proof_surfaces(
     - gains : par compétence, avant→après trié par plus gros gain (le récit d'impact) ;
     - trajectory : distribution de la cohorte par niveau (projection vers le supérieur).
     """
-    now = now or datetime.now()
+    now = ensure_utc(now) or utcnow()   # naïf accepté (tests) → réinterprété UTC
     split = now - timedelta(days=window_days)
 
     code_of: dict = {}
@@ -56,8 +57,10 @@ def proof_surfaces(
     responses = list(s.execute(
         select(Response).where(Response.school_id == school_id)
     ).scalars())
-    before = [r for r in responses if r.created_at < split]
-    after = [r for r in responses if r.created_at >= split]
+    # ensure_utc : created_at relu de SQLite est naïf (convention UTC) — sans ça,
+    # la comparaison avec `split` (aware) lèverait TypeError.
+    before = [r for r in responses if ensure_utc(r.created_at) < split]
+    after = [r for r in responses if ensure_utc(r.created_at) >= split]
 
     by_comp_before: dict = defaultdict(list)
     by_comp_after: dict = defaultdict(list)
@@ -89,10 +92,15 @@ def proof_surfaces(
     }
 
     # Projection de trajectoire : où se situe la cohorte (niveau moyen par élève, mesure directe).
+    # Jointure Student : un élève SOFT-DELETED sort de la trajectoire et des compteurs de
+    # maîtrise (revue 2026-07-08) — l'agrégat par school_id seul le comptait encore.
     abilities = list(s.execute(
-        select(StudentCompetencyAbility).where(
+        select(StudentCompetencyAbility)
+        .join(Student, Student.id == StudentCompetencyAbility.student_id)
+        .where(
             StudentCompetencyAbility.school_id == school_id,
             StudentCompetencyAbility.n_direct > 0,
+            Student.deleted_at.is_(None),
         )
     ).scalars())
     by_student: dict = defaultdict(list)

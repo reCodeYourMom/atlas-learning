@@ -115,9 +115,13 @@ def test_super_admin_magic_link_signs_in():
     r = client.post("/admin/request-link", json={"email": "ops@atlas.io"})
     assert r.status_code == 200 and r.json() == {"ok": True}
     assert FAKE_EMAIL.sent, "un email de lien magique doit partir"
+    # GET du lien email : validation SANS consommation (anti-préchargement) →
+    # page de confirmation ; le POST (clic humain) consomme et ouvre la session.
     login = client.get(f"/admin/login?token={_magic_link_token()}", follow_redirects=False)
     assert login.status_code == 302
-    assert login.headers["location"].split("#token=")[1]   # session ouverte
+    link_token = login.headers["location"].split("/login/confirm#token=")[1]
+    confirm = client.post("/admin/login/confirm", json={"token": link_token})
+    assert confirm.status_code == 200 and confirm.json()["token"]   # session ouverte
     appmod.app.dependency_overrides.clear()
 
 

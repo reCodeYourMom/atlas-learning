@@ -5,10 +5,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, ForeignKey, String
+from sqlalchemy import JSON, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, uuid_pk
+from .base import Base, utcnow, uuid_pk
 
 
 class AssessmentSession(Base):
@@ -24,5 +24,5 @@ class AssessmentSession(Base):
     status: Mapped[str] = mapped_column(String, default="active")  # active | completed
     target_competency_ids: Mapped[Optional[list]] = mapped_column(JSON, default=None)
     stop_reason: Mapped[Optional[str]] = mapped_column(String, default=None)
-    started_at: Mapped[datetime] = mapped_column(default=datetime.now)
-    ended_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)

@@ -64,6 +64,13 @@ export const DICT = {
     en: "That link is invalid or expired — request a new one.",
     ar: "هذا الرابط غير صالح أو منتهي — اطلب رابطًا جديدًا.",
   },
+  // Étape de confirmation du lien magique (anti-préchargement : le clic humain consomme).
+  "magic.confirm.title": { en: "Almost there", ar: "خطوة أخيرة" },
+  "magic.confirm.body": {
+    en: "Click Continue to sign in. This link works only once.",
+    ar: "اضغط «متابعة» لتسجيل الدخول. هذا الرابط يعمل مرة واحدة فقط.",
+  },
+  "magic.confirm.submit": { en: "Continue", ar: "متابعة" },
   "login.sso.or": { en: "or", ar: "أو" },
   "login.sso.with": { en: "Continue with", ar: "المتابعة عبر" },
   "login.sso.error": { en: "Single sign-on failed. Try again or use your password.", ar: "فشل الدخول الموحّد. حاول مجددًا أو استخدم كلمة المرور." },

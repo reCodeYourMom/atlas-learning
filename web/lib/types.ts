@@ -168,6 +168,33 @@ export interface ArItem {
   math_preserved: boolean;
 }
 
+// Item de la file du back-office linguiste (persona dédié). Comme ArItem, plus le flag
+// de fidélité math persisté (ar_math_broken) et la provenance utile à la revue.
+export interface LinguistItem {
+  item_id: string;
+  competency_id: string;
+  status: string;
+  answer_format: "MCQ" | "NUMERIC" | "SHORT";
+  content_en: { stem?: string; options?: string[]; answer?: string; [k: string]: unknown };
+  content_ar: { stem?: string; options?: string[]; answer?: string; [k: string]: unknown } | null;
+  ar_validated: boolean;
+  ar_math_broken: boolean;
+  math_preserved: boolean;
+  provenance: {
+    ar_proposed_by?: string;
+    ar_validated_by?: string;
+    ar_math_broken?: boolean;
+    flag_reason?: string;
+    flagged_by?: string;
+  };
+}
+
+export interface LinguistQueue {
+  items: LinguistItem[];
+  remaining: number;
+  coverage: ArCoverage;
+}
+
 export interface TutorExplanation {
   available: boolean;
   competency_code?: string;

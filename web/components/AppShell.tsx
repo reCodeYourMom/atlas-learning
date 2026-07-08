@@ -33,6 +33,7 @@ function navFor(me: Me): NavItem[] {
     }
   }
   if (r.has("it_admin")) items.push({ href: "/it", key: "nav.security" });
+  if (r.has("linguist")) items.push({ href: "/linguist", key: "nav.linguist" });
   if (r.has("student") && me.own_student_id) items.push({ href: "/student", key: "nav.session" });
   if (r.has("parent") && me.child_student_ids[0])
     items.push({ href: `/parent/${me.child_student_ids[0]}`, key: "nav.trajectory" });

@@ -117,6 +117,7 @@ class Role(str, enum.Enum):
     TEACHER = "teacher"           # ses classes
     PARENT = "parent"             # lecture seule sur son enfant
     STUDENT = "student"           # ses propres activités
+    LINGUIST = "linguist"         # staff Atlas GLOBAL : relit/valide l'arabe de la banque (pas tenant-scopé)
 
 
 # Helpers de colonnes communes (mixin léger, pas d'abstraction magique)

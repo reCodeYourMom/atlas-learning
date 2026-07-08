@@ -17,6 +17,7 @@ export const DICT = {
   "nav.session": { en: "My session", ar: "جلستي" },
   "nav.trajectory": { en: "My child", ar: "طفلي" },
   "nav.security": { en: "Security & SSO", ar: "الأمن والدخول الموحّد" },
+  "nav.linguist": { en: "Arabic review", ar: "مراجعة العربية" },
   "nav.signout": { en: "Sign out", ar: "تسجيل الخروج" },
   "lang.toggle": { en: "العربية", ar: "English" },
 
@@ -397,6 +398,42 @@ export const DICT = {
   "it.compliance": { en: "Compliance & audit", ar: "الامتثال والتدقيق" },
   "it.export": { en: "Export data", ar: "تصدير البيانات" },
   "it.noaudit": { en: "No audit entries yet.", ar: "لا توجد سجلات تدقيق بعد." },
+
+  // — Back-office linguiste (persona dédié) : file de validation AR —
+  "ling.login.title": { en: "Linguist review access", ar: "دخول المراجع اللغوي" },
+  "ling.login.intro": {
+    en: "Enter your Atlas email — we'll send you a one-time sign-in link.",
+    ar: "أدخل بريد أطلس الخاص بك — سنرسل لك رابط دخول لمرة واحدة.",
+  },
+  "ling.login.submit": { en: "Send me a link", ar: "أرسل لي رابطًا" },
+  "ling.login.sent.title": { en: "Check your inbox", ar: "تحقّق من بريدك" },
+  "ling.login.sent.body": {
+    en: "If that email can review Arabic, a sign-in link is on its way.",
+    ar: "إذا كان بإمكان هذا البريد مراجعة العربية، فإن رابط الدخول في طريقه إليك.",
+  },
+  "ling.title": { en: "Arabic review queue", ar: "قائمة مراجعة العربية" },
+  "ling.subtitle": {
+    en: "Review, correct and validate the Arabic translation of each item. Machine translates, you decide.",
+    ar: "راجِع وصحِّح وصادِق على الترجمة العربية لكل سؤال. الآلة تُترجم، وأنت تُقرِّر.",
+  },
+  "ling.remaining": { en: "{n} left to review", ar: "بقي {n} للمراجعة" },
+  "ling.en": { en: "English (source)", ar: "الإنجليزية (المصدر)" },
+  "ling.ar": { en: "Arabic (to validate)", ar: "العربية (للمصادقة)" },
+  "ling.answer": { en: "Answer", ar: "الإجابة" },
+  "ling.options": { en: "Options", ar: "الخيارات" },
+  "ling.math.warn": { en: "math ⚠️", ar: "الأرقام ⚠️" },
+  "ling.math.ok": { en: "numbers preserved", ar: "الأرقام محفوظة" },
+  "ling.edit": { en: "Edit Arabic", ar: "تعديل العربية" },
+  "ling.save": { en: "Save correction", ar: "حفظ التصحيح" },
+  "ling.saving": { en: "Saving…", ar: "جارٍ الحفظ…" },
+  "ling.validate": { en: "Validate", ar: "مصادقة" },
+  "ling.flag": { en: "Flag a problem", ar: "الإبلاغ عن مشكلة" },
+  "ling.flag.reason": { en: "What's wrong with this translation?", ar: "ما الخطأ في هذه الترجمة؟" },
+  "ling.flag.submit": { en: "Flag", ar: "إبلاغ" },
+  "ling.cancel": { en: "Cancel", ar: "إلغاء" },
+  "ling.flagged": { en: "Flagged", ar: "مُبلَّغ عنه" },
+  "ling.none": { en: "Nothing left to validate. 🎉", ar: "لا شيء متبقٍّ للمصادقة. 🎉" },
+  "ling.notyet": { en: "No Arabic yet — add a translation.", ar: "لا توجد عربية بعد — أضف ترجمة." },
 } as const;
 
 export type DictKey = keyof typeof DICT;

@@ -6,6 +6,8 @@ import type {
   ArItem,
   ClassDigest,
   ClassGap,
+  LinguistItem,
+  LinguistQueue,
   Me,
   NextItem,
   RemediationPreview,
@@ -131,6 +133,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ token }),
     }),
+  // Lien magique du back-office linguiste (même contrat single-use / anti-préchargement).
+  linguistRequestLink: (email: string) =>
+    request<{ ok: boolean }>("/linguist/request-link", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  linguistLoginConfirm: (token: string) =>
+    request<{ token: string }>("/linguist/login/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
   parentChildren: () => request<{ children: { student_id: string; label: string }[] }>("/parent/children"),
 
   // — Tuteurs gérés par le staff —
@@ -188,6 +201,22 @@ export const api = {
     request<ArItem>(`/admin/arabic/${itemId}/propose`, { method: "POST" }),
   arValidate: (itemId: string) =>
     request<ArItem>(`/admin/arabic/${itemId}/validate`, { method: "POST" }),
+
+  // — Back-office linguiste (persona dédié) : file de validation AR —
+  linguistQueue: () => request<LinguistQueue>("/linguist/queue"),
+  linguistItem: (itemId: string) => request<LinguistItem>(`/linguist/items/${itemId}`),
+  linguistEditArabic: (itemId: string, content_ar: Record<string, unknown>) =>
+    request<LinguistItem>(`/linguist/items/${itemId}/arabic`, {
+      method: "POST",
+      body: JSON.stringify({ content_ar }),
+    }),
+  linguistValidate: (itemId: string) =>
+    request<LinguistItem>(`/linguist/items/${itemId}/validate`, { method: "POST" }),
+  linguistFlag: (itemId: string, reason: string) =>
+    request<LinguistItem>(`/linguist/items/${itemId}/flag`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 
   // — Session élève —
   startSession: (student_id: string) =>

@@ -13,6 +13,7 @@ function landingFor(me: Me): string {
   if (r.has("teacher") && me.classrooms[0]) return `/teacher/${me.classrooms[0].id}`;
   if ((r.has("ped_admin") || r.has("super_admin")) && me.schools[0]) return `/admin/${me.schools[0].id}`;
   if (r.has("it_admin")) return "/it";
+  if (r.has("linguist")) return "/linguist"; // staff Atlas global (relecture AR)
   if (r.has("student") && me.own_student_id) return "/student";
   if (r.has("parent") && me.child_student_ids[0]) return `/parent/${me.child_student_ids[0]}`;
   return "/login";

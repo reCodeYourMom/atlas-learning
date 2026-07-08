@@ -159,6 +159,44 @@ def test_migrations_reversibles_de_0016_a_0013():
         os.unlink(tmp.name)
 
 
+def test_role_linguist_migration_upgrade_downgrade():
+    # 0017 ajoute la valeur 'linguist' à l'enum RBAC `role`. Sur SQLite (native_enum sans
+    # CHECK), la colonne role est un VARCHAR : l'upgrade est un no-op de schéma, mais on
+    # vérifie que la chaîne monte à head, qu'une membership `linguist` s'insère, et que le
+    # downgrade→re-upgrade reste praticable (no-op assumé côté downgrade).
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); tmp.close()
+    url = f"sqlite:///{tmp.name}"
+    old_env = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
+        cfg = _alembic_cfg()
+        command.upgrade(cfg, "head")            # 0017 inclus
+        engine = sa.create_engine(url)
+        with engine.begin() as conn:
+            uid = _hex(uuid.uuid4())
+            conn.execute(sa.text(
+                "INSERT INTO app_user (id, email, is_active) VALUES (:id, :e, 1)"
+            ), {"id": uid, "e": "ling@atlas.io"})
+            # La valeur 'linguist' est acceptée par la colonne role.
+            conn.execute(sa.text(
+                "INSERT INTO membership (id, user_id, role) VALUES (:id, :u, 'linguist')"
+            ), {"id": _hex(uuid.uuid4()), "u": uid})
+        with engine.connect() as conn:
+            role = conn.execute(sa.text(
+                "SELECT role FROM membership WHERE user_id = :u"), {"u": uid}).scalar_one()
+            assert role == "linguist"
+        # downgrade d'un cran puis re-upgrade : la chaîne reste réversible.
+        command.downgrade(cfg, "0016_timestamptz")
+        command.upgrade(cfg, "head")
+        engine.dispose()
+    finally:
+        if old_env is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = old_env
+        os.unlink(tmp.name)
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

@@ -36,6 +36,16 @@ def is_super(ctx: UserContext) -> bool:
     return Role.SUPER_ADMIN in ctx.roles
 
 
+def can_review_arabic(ctx: UserContext) -> bool:
+    """Accès à la banque d'items AR (relecture/validation linguistique).
+
+    Le contenu de la banque n'est PAS tenant-scopé (pas de school_id sur les items) : le
+    linguiste est un STAFF Atlas GLOBAL. L'accès n'est donc PAS filtré par école — il suffit
+    d'avoir le rôle `linguist` (ou `super_admin`, accès illimité). Cohérent avec le style des
+    helpers `can_access_*`, mais sans argument de périmètre (le contenu est global)."""
+    return ctx.has(Role.LINGUIST, Role.SUPER_ADMIN)
+
+
 def can_access_school(ctx: UserContext, school_id) -> bool:
     if is_super(ctx):
         return True

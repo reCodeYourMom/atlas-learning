@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -67,7 +67,7 @@ from src.rbac.single_use import (
 from src.compliance import service as compliance
 from src.licensing import service as licensing
 from src.notify.email import build_email_sender
-from src.notify.templates import admin_login_email, parent_login_email
+from src.notify.templates import admin_login_email, linguist_login_email, parent_login_email
 from src.onboarding.service import onboard_tenant
 from src.restitution.proof import proof_surfaces
 from src.rbac import oidc
@@ -80,6 +80,7 @@ from src.rbac.authz import (
     can_access_classroom,
     can_access_school,
     can_access_student,
+    can_review_arabic,
 )
 
 _engine = make_engine()
@@ -718,6 +719,86 @@ def admin_login_confirm(body: MagicLinkConfirmIn, s: Session = Depends(get_db)):
     return {"token": make_token(str(user.id))}
 
 
+# ---------- accès linguiste Atlas (staff éditeur global) : lien magique interne ----------
+#
+# Le linguiste relit/valide l'arabe de la banque d'items — contenu Atlas GLOBAL, pas
+# tenant-scopé. Comme le super-admin, il ne peut pas dépendre de l'IdP d'un CLIENT :
+# même mécanisme de lien magique signé HMAC, single-use, cloisonné (purpose=linguist_login),
+# anti-préchargement (GET valide sans consommer, POST consomme). Le rôle est revérifié.
+
+_LINGUIST_LINK_TTL = 30 * 60  # 30 min : accès éditeur, fenêtre courte (comme le super-admin)
+
+
+@app.post("/linguist/request-link")
+def linguist_request_link(body: ParentRequestIn, s: Session = Depends(get_db),
+                          sender=Depends(get_email_sender)):
+    """Auto-demande d'un lien magique d'accès linguiste. Réservé aux comptes `linguist`.
+
+    Réponse constante (anti-énumération) : on ne révèle jamais si l'email est linguiste.
+    """
+    user = s.execute(
+        select(AppUser).where(AppUser.email == body.email.strip().lower(),
+                              AppUser.deleted_at.is_(None))
+    ).scalar_one_or_none()
+    if user is not None and user.is_active:
+        ctx = build_user_context(s, user.id)
+        # super_admin OU linguist : le staff Atlas global peut accéder à la console.
+        if can_review_arabic(ctx):
+            token = make_single_use_token(str(user.id), purpose="linguist_login",
+                                          ttl_s=_LINGUIST_LINK_TTL)
+            link = f"{_web_base()}/api/linguist/login?token={token}"
+            subject, html, text = linguist_login_email(link)
+            sender.send(to=user.email, subject=subject, html=html, text=text)
+            log_action(s, action="linguist.request_link", user_id=user.id)
+            s.commit()
+    return {"ok": True}
+
+
+@app.get("/linguist/login")
+def linguist_login(token: str, s: Session = Depends(get_db)):
+    """Valide le lien magique linguiste SANS le consommer → confirmation humaine.
+
+    Même patron anti-préchargement que /parent/login et /admin/login : GET idempotent
+    (lecture seule), consommation atomique au POST /linguist/login/confirm.
+    """
+    web = _web_base()
+    try:
+        uid = peek_single_use_token(s, token, purpose="linguist_login")
+    except TokenAlreadyUsedError:
+        return RedirectResponse(f"{web}/login?linguist_error=used", status_code=302)
+    except ValueError:
+        return RedirectResponse(f"{web}/login?linguist_error=invalid", status_code=302)
+    user = s.get(AppUser, uuid.UUID(uid))
+    if user is None or not user.is_active or user.deleted_at is not None:
+        return RedirectResponse(f"{web}/login?linguist_error=invalid", status_code=302)
+    # Contrôle du rôle en LECTURE (le POST re-vérifie au moment de la connexion).
+    if not can_review_arabic(build_user_context(s, user.id)):
+        return RedirectResponse(f"{web}/login?linguist_error=forbidden", status_code=302)
+    # Jeton de LIEN dans le fragment (#…) : jamais envoyé aux serveurs ni journalisé.
+    return RedirectResponse(f"{web}/linguist/confirm#token={token}", status_code=302)
+
+
+@app.post("/linguist/login/confirm")
+def linguist_login_confirm(body: MagicLinkConfirmIn, s: Session = Depends(get_db)):
+    """CONSOMME le lien magique linguiste (single-use) → jeton de session linguiste."""
+    try:
+        uid = consume_single_use_token(s, body.token, purpose="linguist_login")
+    except TokenAlreadyUsedError:
+        raise HTTPException(status_code=401, detail="used")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="invalid")
+    # Jeton brûlé dès la consommation : les contrôles suivants ne le « rendent » pas.
+    user = s.get(AppUser, uuid.UUID(uid))
+    if user is None or not user.is_active or user.deleted_at is not None:
+        raise HTTPException(status_code=401, detail="invalid")
+    # Re-vérifie le rôle au moment de la connexion (révocation possible entre-temps).
+    if not can_review_arabic(build_user_context(s, user.id)):
+        raise HTTPException(status_code=403, detail="forbidden")
+    log_action(s, action="linguist.login", user_id=user.id)
+    s.commit()
+    return {"token": make_token(str(user.id))}
+
+
 @app.post("/admin/parents/invite")
 def admin_parents_invite(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db),
                          sender=Depends(get_email_sender)):
@@ -1154,6 +1235,141 @@ def admin_arabic_validate(item_id: uuid.UUID, ctx: UserContext = Depends(get_con
                resource_type="item", resource_id=it.id)
     s.commit()
     return _ar_item_payload(it)
+
+
+# ---------- back-office LINGUISTE : file de validation AR (Mouvement 02, persona dédié) ----------
+#
+# Équivalent web de `scripts/review_items.py ar-pending`. Le linguiste (staff Atlas global,
+# rôle `linguist` OU super_admin) relit/corrige/valide les traductions AR de la banque. La
+# banque n'étant PAS tenant-scopée, aucun filtrage par école : l'autorisation ne dépend que
+# du rôle (cf. can_review_arabic). Le gate ar_validated reste la seule porte vers le pool servi.
+
+
+def require_linguist(ctx: UserContext) -> None:
+    """403 si l'appelant n'est pas linguiste (ou super_admin). Pas de périmètre école."""
+    if not can_review_arabic(ctx):
+        raise HTTPException(status_code=403, detail="rôle linguiste requis")
+
+
+def _linguist_queue_payload(it: Item) -> dict:
+    """Item pour la file linguiste. Inclut la réponse : l'audience est STAFF (pas élève),
+    et le linguiste a besoin de `answer`/`options` pour juger la fidélité de la traduction.
+    Ce n'est PAS une clé de correction exposée à un élève — choix assumé (spec §3)."""
+    prov = it.provenance or {}
+    return {
+        "item_id": str(it.id),
+        "competency_id": str(it.competency_id),
+        "status": it.status.value,
+        "answer_format": it.answer_format.value,
+        "content_en": it.content_en,
+        "content_ar": it.content_ar,
+        "ar_validated": it.ar_validated,
+        # Flag de fidélité math posé par scripts/check_ar_fidelity.py (provenance) OU calculé.
+        "ar_math_broken": bool(prov.get("ar_math_broken")),
+        "math_preserved": ar_math_preserved(it.content_en, it.content_ar) if it.content_ar else False,
+        # Provenance utile à la revue (qui a proposé/flaggé, raison) — jamais de PII élève.
+        "provenance": {k: prov[k] for k in (
+            "ar_proposed_by", "ar_validated_by", "ar_math_broken", "flag_reason", "flagged_by",
+        ) if k in prov},
+    }
+
+
+def _linguist_item_or_404(s: Session, item_id: uuid.UUID) -> Item:
+    it = s.get(Item, item_id)
+    if it is None or it.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="item introuvable")
+    return it
+
+
+@app.get("/linguist/queue")
+def linguist_queue(limit: int = 100, ctx: UserContext = Depends(get_context),
+                   s: Session = Depends(get_db)):
+    """File des items à valider (ar_validated=False), flaggés `ar_math_broken` d'abord.
+
+    Mime `scripts/review_items.py ar-pending` : items non validés, priorité aux traductions
+    dont la fidélité math est douteuse. Tri secondaire par contenu (déterministe)."""
+    require_linguist(ctx)
+    items = list(s.execute(
+        select(Item).where(Item.ar_validated.is_(False), Item.deleted_at.is_(None))
+    ).scalars())
+    # Flaggés en tête (ar_math_broken via provenance), puis ordre stable par item_id.
+    items.sort(key=lambda it: (not bool((it.provenance or {}).get("ar_math_broken")), str(it.id)))
+    payload = [_linguist_queue_payload(it) for it in items[: min(max(limit, 1), 500)]]
+    return {"items": payload, "remaining": len(items), "coverage": ar_coverage(s)}
+
+
+@app.get("/linguist/items/{item_id}")
+def linguist_item_detail(item_id: uuid.UUID, ctx: UserContext = Depends(get_context),
+                         s: Session = Depends(get_db)):
+    """Détail EN+AR côte à côte + fidélité math déterministe (ar_math_preserved)."""
+    require_linguist(ctx)
+    it = _linguist_item_or_404(s, item_id)
+    return _linguist_queue_payload(it)
+
+
+class LinguistArabicIn(BaseModel):
+    content_ar: dict
+
+
+@app.post("/linguist/items/{item_id}/arabic")
+def linguist_edit_arabic(item_id: uuid.UUID, body: LinguistArabicIn,
+                         ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
+    """Corrige la traduction AR (review.set_arabic : repose ar_validated=False, n'altère
+    jamais content_en). Audité `linguist.edit_ar`."""
+    require_linguist(ctx)
+    it = _linguist_item_or_404(s, item_id)
+    try:
+        review.set_arabic(s, it, body.content_ar, by=str(ctx.user_id))
+    except ValidationError as exc:  # content_ar non conforme à ItemContent
+        raise HTTPException(status_code=422, detail=f"contenu AR non conforme : {exc}")
+    log_action(s, action="linguist.edit_ar", user_id=ctx.user_id,
+               resource_type="item", resource_id=it.id)
+    s.commit()
+    return _linguist_queue_payload(it)
+
+
+@app.post("/linguist/items/{item_id}/validate")
+def linguist_validate(item_id: uuid.UUID, ctx: UserContext = Depends(get_context),
+                      s: Session = Depends(get_db)):
+    """Valide l'AR (review.validate_arabic : ar_validated=True + human_reviewed →
+    linguist_validated). Respecte la machine à états. Audité `linguist.validate_ar`."""
+    require_linguist(ctx)
+    it = _linguist_item_or_404(s, item_id)
+    try:
+        review.validate_arabic(s, it, linguist=str(ctx.user_id))
+    except review.InvalidTransition as exc:
+        # Saut d'état / précondition non remplie (pas d'AR, mauvais statut) → 409 propre.
+        raise HTTPException(status_code=409, detail=str(exc))
+    log_action(s, action="linguist.validate_ar", user_id=ctx.user_id,
+               resource_type="item", resource_id=it.id)
+    s.commit()
+    return _linguist_queue_payload(it)
+
+
+class LinguistFlagIn(BaseModel):
+    reason: str
+
+
+@app.post("/linguist/items/{item_id}/flag")
+def linguist_flag(item_id: uuid.UUID, body: LinguistFlagIn,
+                  ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
+    """Signale un problème de traduction : repose ar_validated=False + raison en provenance.
+    N'altère jamais content_en/content_ar. Audité `linguist.flag_ar`."""
+    require_linguist(ctx)
+    it = _linguist_item_or_404(s, item_id)
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="raison requise")
+    prov = dict(it.provenance or {})
+    prov["ar_math_broken"] = True          # remonte l'item en tête de file
+    prov["flag_reason"] = reason
+    prov["flagged_by"] = str(ctx.user_id)
+    it.provenance = prov
+    it.ar_validated = False                # un item signalé n'est plus « bon à servir »
+    log_action(s, action="linguist.flag_ar", user_id=ctx.user_id,
+               resource_type="item", resource_id=it.id, details={"reason": reason[:200]})
+    s.commit()
+    return _linguist_queue_payload(it)
 
 
 @app.get("/schools/{school_id}/overview")

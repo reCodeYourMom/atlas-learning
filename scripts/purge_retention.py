@@ -8,6 +8,11 @@ suivent par cascade FK (mêmes cascades que le droit à l'oubli, cf. compliance/
 SÉCURITÉ DU SCRIPT :
   - ne touche QUE les lignes `deleted_at` NON NULL et plus vieilles que la rétention —
     jamais un élève actif, jamais un soft delete récent (fenêtre de récupération) ;
+  - LEGAL HOLD (avis juridique 2026-07-08) : n'efface JAMAIS un élève dont `legal_hold`
+    est posé, ni aucun élève d'une école dont `legal_hold` est posé (instruction
+    documentée du controller / litige) — ces élèves sont comptés `held_skipped` ;
+  - RETENTION_DAYS est PLAFONNÉ à MAX_RETENTION_DAYS (30) : la fenêtre de grâce ne peut
+    pas être étendue par configuration au-delà du maximum juridiquement retenu ;
   - --dry-run PAR DÉFAUT (rapport sans rien supprimer) ; exécution réelle via --execute ;
   - chaque purge est journalisée dans AuditLog (append-only, sans PII).
 
@@ -32,12 +37,15 @@ from sqlalchemy.orm import Session
 from src.audit import log_action
 from src.db import SessionLocal, make_engine
 from src.models.base import ensure_utc, utcnow
-from src.models.measurement import Response, Student, StudentCompetencyAbility
+from src.models.measurement import Response, School, Student, StudentCompetencyAbility
 from src.models.org import AppUser, ParentStudent
 from src.models.session import AssessmentSession
 from src.models.token import ConsumedToken
 
 DEFAULT_RETENTION_DAYS = 30
+# Plafond juridique de la fenêtre de grâce (avis 2026-07-08) : RETENTION_DAYS ne peut pas
+# être étendu au-delà, quelle que soit la configuration.
+MAX_RETENTION_DAYS = 30
 
 
 def _count(s: Session, model, where) -> int:
@@ -52,14 +60,29 @@ def purge_retention(s: Session, *, retention_days: Optional[int] = None,
     et n'écrit rien (ni delete, ni audit, ni commit).
     """
     now = ensure_utc(now) or utcnow()   # naïf accepté (tests) → réinterprété UTC
-    days = retention_days if retention_days is not None else int(
+    configured = retention_days if retention_days is not None else int(
         os.environ.get("RETENTION_DAYS", DEFAULT_RETENTION_DAYS))
+    # Plafond juridique : la fenêtre de grâce ne peut jamais dépasser MAX_RETENTION_DAYS.
+    days = min(configured, MAX_RETENTION_DAYS)
     cutoff = now - timedelta(days=days)
 
+    # Écoles sous legal hold tenant-large → aucun de leurs élèves n'est purgé.
+    held_school_ids = set(s.execute(
+        select(School.id).where(School.legal_hold.is_not(None))
+    ).scalars().all())
+
     # GARDE-FOU : deleted_at NON NULL **et** plus vieux que la rétention, rien d'autre.
-    students = s.execute(
+    # On récupère tous les éligibles PAR DATE puis on écarte ceux sous legal hold — propre
+    # (Student.legal_hold posé) ou hérité (école sous hold) — comptés en `held_skipped`.
+    eligible = s.execute(
         select(Student).where(Student.deleted_at.is_not(None), Student.deleted_at < cutoff)
     ).scalars().all()
+
+    def _held(st) -> bool:
+        return st.legal_hold is not None or st.school_id in held_school_ids
+
+    students = [st for st in eligible if not _held(st)]
+    held_skipped = sum(1 for st in eligible if _held(st))
 
     purged, users_purged = [], 0
     for st in students:
@@ -96,12 +119,13 @@ def purge_retention(s: Session, *, retention_days: Optional[int] = None,
         s.execute(delete(ConsumedToken).where(ConsumedToken.expires_at < now))
         log_action(s, action="retention.purge",
                    details={"students": len(purged), "users": users_purged,
-                            "consumed_tokens": tokens_expired, "retention_days": days})
+                            "consumed_tokens": tokens_expired, "retention_days": days,
+                            "held_skipped": held_skipped})
         s.commit()
 
     return {"dry_run": not execute, "retention_days": days, "cutoff": cutoff.isoformat(),
             "students": purged, "users_purged": users_purged,
-            "consumed_tokens_purged": tokens_expired}
+            "consumed_tokens_purged": tokens_expired, "held_skipped": held_skipped}
 
 
 def main() -> None:
@@ -124,6 +148,9 @@ def main() -> None:
               f"{st['sessions']} sessions, {st['parent_links']} liens parent")
     print(f"  total : {len(report['students'])} élève(s), {report['users_purged']} compte(s), "
           f"{report['consumed_tokens_purged']} jti expiré(s)")
+    if report["held_skipped"]:
+        print(f"  legal hold : {report['held_skipped']} élève(s) éligible(s) NON purgé(s) "
+              f"(conservation imposée)")
 
 
 if __name__ == "__main__":

@@ -29,9 +29,25 @@ Décisions déjà prises pour cette beta :
   litige, ré-inscription). Plus court fragilise la récupération ; plus long affaiblit la minimisation
   pour des données de **mineurs**.
 
-⚠️ **À confirmer par le conseil juridique et à refléter dans le DPA / consentement signé par l'école**
-avant d'accueillir de vraies données. Le chiffre 30 est un défaut défendable, pas un avis juridique.
-`RETENTION_DAYS=30` est déjà le défaut code — le poser **explicitement** dans le `.env` de la VM (§6).
+**Confirmé par l'avis juridique (2026-07-08)** : 30 j défendable sous PDPL EAU (pas de safe-harbor
+chiffré ; nécessité + limitation + mécanisme d'effacement), pas de durée min/max imposée pour les
+mineurs. Formulation opérationnelle actée : **RETENTION_DAYS = 30 (maximum), suppression logique
+immédiate, purge définitive automatique à J+30, sauf legal hold ou instruction documentée de
+l'école-controller.**
+
+Traduction en code (déjà en place, ne rien coder de plus) :
+- **Plafond dur** : `purge_retention.py` **ramène** toute valeur `RETENTION_DAYS > 30` à 30 (la
+  fenêtre ne peut pas être étendue par config).
+- **Legal hold** : `scripts/legal_hold.py set|clear|list --student <id> | --school <id> --reason "…"`
+  suspend la purge (par élève, ou tenant-large par école = instruction controller), audité. Un
+  élève sous hold n'est jamais purgé, même au-delà de 30 j.
+- **Suppression logique immédiate** : le soft-delete masque déjà l'élève de tous les endpoints
+  (durcissement vague 2). **Purge auto J+30** : `retention.cron` lance `--execute` quotidiennement.
+
+⚠️ Reste à faire côté DPA (pas du code) : inscrire cette formulation, faire déclarer l'école
+**controller**, et — cf. avis — vérifier séparément le régime **public/B2G** (la PDPL fédérale EAU
+exclut les *Government Data*) et un éventuel **appendice KSA** données mineurs si accès depuis la KSA.
+Poser `RETENTION_DAYS=30` explicitement dans le `.env` de la VM (§5).
 
 ---
 

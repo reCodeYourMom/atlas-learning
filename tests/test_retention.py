@@ -165,12 +165,57 @@ def test_never_touches_active_students_even_with_zero_retention():
         assert _students(s) == {"ACTIVE"}
 
 
-def test_retention_days_env_default(monkeypatch):
+def test_retention_days_capped_at_max(monkeypatch):
+    # Avis juridique 2026-07-08 : RETENTION_DAYS est PLAFONNÉ à 30. Poser 60 dans l'env
+    # ne doit PAS étendre la fenêtre : la valeur effective reste 30, donc OLD (45 j) est
+    # bien éligible à la purge (le plafond ne peut pas servir à retarder l'effacement).
     engine = _engine(); _seed(engine)
-    monkeypatch.setenv("RETENTION_DAYS", "60")                   # 60 j : OLD (45 j) trop récent
+    monkeypatch.setenv("RETENTION_DAYS", "60")
     with Session(bind=engine) as s:
         report = purge_retention(s, now=NOW)
-        assert report["retention_days"] == 60 and report["students"] == []
+        assert report["retention_days"] == 30                    # ramené au plafond
+        assert len(report["students"]) == 1                      # OLD reste purgeable
+
+
+# ---------- legal hold : suspend la purge (avis juridique 2026-07-08) ----------
+
+def test_legal_hold_on_student_blocks_purge():
+    engine = _engine(); ids = _seed(engine)
+    with Session(bind=engine) as s:
+        s.get(Student, ids["old"]).legal_hold = NOW               # hold individuel
+        s.commit()
+    with Session(bind=engine) as s:
+        report = purge_retention(s, now=NOW, execute=True)
+        assert report["students"] == [] and report["held_skipped"] == 1
+    with Session(bind=engine) as s:
+        assert _students(s) == {"ACTIVE", "RECENT", "OLD"}        # OLD conservé malgré 45 j
+
+
+def test_legal_hold_on_school_blocks_all_its_students():
+    engine = _engine(); ids = _seed(engine)
+    with Session(bind=engine) as s:
+        old = s.get(Student, ids["old"])
+        s.get(School, old.school_id).legal_hold = NOW             # hold tenant-large
+        s.commit()
+    with Session(bind=engine) as s:
+        report = purge_retention(s, now=NOW, execute=True)
+        assert report["students"] == [] and report["held_skipped"] == 1
+    with Session(bind=engine) as s:
+        assert "OLD" in _students(s)                              # protégé par le hold école
+
+
+def test_purge_resumes_after_hold_cleared():
+    engine = _engine(); ids = _seed(engine)
+    with Session(bind=engine) as s:
+        s.get(Student, ids["old"]).legal_hold = NOW; s.commit()
+    with Session(bind=engine) as s:                               # hold posé → épargné
+        assert purge_retention(s, now=NOW, execute=True)["students"] == []
+    with Session(bind=engine) as s:                               # hold levé → purgé
+        s.get(Student, ids["old"]).legal_hold = None; s.commit()
+    with Session(bind=engine) as s:
+        assert len(purge_retention(s, now=NOW, execute=True)["students"]) == 1
+    with Session(bind=engine) as s:
+        assert _students(s) == {"ACTIVE", "RECENT"}
 
 
 if __name__ == "__main__":

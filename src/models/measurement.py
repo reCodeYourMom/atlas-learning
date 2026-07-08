@@ -25,6 +25,10 @@ class School(Base):
     )
     external_ref: Mapped[Optional[str]] = mapped_column(String, index=True, default=None)  # orgUnit id
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    # Legal hold tenant-large (instruction documentée du controller / litige école) : suspend
+    # la purge de rétention de TOUS ses élèves tant qu'il est posé (cf. purge_retention).
+    legal_hold: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    legal_hold_reason: Mapped[Optional[str]] = mapped_column(String, default=None)
 
 
 class Student(Base):
@@ -43,6 +47,10 @@ class Student(Base):
     )
     external_ref: Mapped[Optional[str]] = mapped_column(String, default=None)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    # Legal hold individuel : suspend la purge de rétention de CET élève (soft-deleted mais
+    # sous obligation de conservation/litige) tant qu'il est posé (cf. purge_retention).
+    legal_hold: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
+    legal_hold_reason: Mapped[Optional[str]] = mapped_column(String, default=None)
 
 
 class Response(Base):

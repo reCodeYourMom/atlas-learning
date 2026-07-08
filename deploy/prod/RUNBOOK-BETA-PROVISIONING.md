@@ -176,11 +176,23 @@ Puis parcours login réel : `https://app.<domaine>` → « Continuer avec Atlas 
 (`grep DEMO_ACCOUNTS_PASSWORD .env`) → **remplacement mdp imposé** → **QR TOTP** (Authy/Google
 Authenticator) → session par rôle. Confirme que TOTP est bien exigé (preuve MFA staff sur données mineurs).
 
+### 7bis. Onboarder le linguiste (validation arabe)
+Aucun parcours self-service ne crée le compte staff `linguist` : le faire via le script dédié
+(idempotent). Il crée le compte + le rôle global, et mint un lien magique single-use à transmettre
+au linguiste (utile même si le SMTP n'est pas encore posé) :
+```bash
+docker compose exec backend python scripts/onboard_linguist.py --email linguiste@atlaslearning.ae
+# → affiche le lien magique (valide 24 h, usage unique). --no-link si le SMTP est déjà en place
+#   (le linguiste demandera son lien lui-même sur https://app.atlaslearning.ae/linguist/login).
+```
+Le linguiste ouvre le lien → confirme → arrive sur sa file (`/linguist`) : items en attente de
+validation AR, les `ar_math_broken` en tête. Il corrige/valide/signale ; tout est audité.
+
 ### 8. Post-beta (dette assumée, à fermer avant scale)
 - **Rotation clé Groq** : révoquer `gsk_...Wmaa` (console Groq), regénérer, poser la nouvelle
   uniquement dans le `.env` VM.
-- **CI** : aucune n'existe → poser `ATLAS_TEST_PG_URL` sur un Postgres de test pour dé-skipper
-  `test_concurrence_reelle_pas_de_perte_update_pg` le jour où une CI est montée.
+- **CI** : GitHub Actions en place (pytest + migrations sur Postgres réel + `ATLAS_TEST_PG_URL`
+  dé-skippe le test de concurrence). Rien à faire ; surveiller que les runs restent verts.
 - **Surveillance quarantaine** : après quelques jours de trafic, `run_quarantine.py` en dry-run,
   vérifier qu'aucun item sain n'est quarantainé ; ajuster `ITEM_BURN_IN` (défaut 20) si besoin.
 - **Comm liens magiques** : les liens émis avant le durcissement sont invalidés (format jti) → prévoir
@@ -193,7 +205,7 @@ Authenticator) → session par rôle. Confirme que TOTP est bien exigé (preuve 
 - [ ] CMK Vault créée et attachée au boot volume (§1)
 - [ ] VM provisionnée, SSH restreint à ton IP, ports 80/443 ouverts
 - [ ] DNS `app.`/`auth.` → IP, TLS Caddy émis
-- [ ] `deploy.sh` OK, migrations 0001→0016 passées, `PROVISION_ON_BOOT=0`
+- [ ] `deploy.sh` OK, migrations 0001→0018 passées, `PROVISION_ON_BOOT=0`
 - [ ] `RETENTION_DAYS=30` posé + reflété dans le DPA école (validé par le conseil)
 - [ ] SMTP OCI posé (`SMTP_HOST/PORT/USERNAME/PASSWORD` + `EMAIL_FROM`) — liens magiques parents & linguistes
 - [ ] 3 crons installés (backup **off-box** + retention + quarantine), dry-runs validés

@@ -44,10 +44,48 @@ Traduction en code (déjà en place, ne rien coder de plus) :
 - **Suppression logique immédiate** : le soft-delete masque déjà l'élève de tous les endpoints
   (durcissement vague 2). **Purge auto J+30** : `retention.cron` lance `--execute` quotidiennement.
 
-⚠️ Reste à faire côté DPA (pas du code) : inscrire cette formulation, faire déclarer l'école
-**controller**, et — cf. avis — vérifier séparément le régime **public/B2G** (la PDPL fédérale EAU
-exclut les *Government Data*) et un éventuel **appendice KSA** données mineurs si accès depuis la KSA.
-Poser `RETENTION_DAYS=30` explicitement dans le `.env` de la VM (§5).
+Poser `RETENTION_DAYS=30` explicitement dans le `.env` de la VM (§5). Faire déclarer l'école
+**controller** dans le DPA (ATLAS = sous-traitant sur instruction). Puis appliquer les clauses par
+juridiction ci-dessous.
+
+### Conformité DPA par juridiction (avis juridique 2026-07-08 — clauses à intégrer)
+
+**EAU — écoles publiques / B2G** : la PDPL fédérale (Decree-Law 45/2021) **exclut de son champ les
+« Government Data » et les entités publiques**. Pour une école **publique** EAU, le DPA ne peut donc
+PAS s'appuyer sur la seule PDPL fédérale : il doit renvoyer à la **gouvernance data du secteur public
+de l'émirat**. À Dubaï = *Dubai Data Law* + Résolution n°2/2017, qui imposent une **classification**
+(Open / Confidential / Sensitive / Secret) ; les données éducatives sont **au moins « Sensitive »**.
+→ Clause DPA de **compliance locale** : l'école publique fournit la classification exacte de ses
+données ET les **durées de rétention imposées par son autorité de tutelle** (KHDA à Dubaï, ADEK à Abu
+Dhabi) — **celles-ci PRÉVALENT sur les 30 jours**.
+- *Traduction technique* : si l'autorité impose une rétention **plus courte**, baisser `RETENTION_DAYS`
+  (≤30, déjà supporté). Si elle impose un **archivage plus long** (obligation de conservation des
+  relevés scolaires), poser un **legal hold école** (`legal_hold.py set --school`) qui suspend la purge
+  — le hold est le mécanisme exact pour « conserver au-delà de 30 j sur obligation locale ». Une
+  rétention **par tenant** (config par école plutôt qu'un env global) est un item roadmap si plusieurs
+  écoles publiques aux régimes divergents coexistent sur une même instance.
+- Réf. : u.ae/data-protection-laws ; garant.ae (PDPL FR).
+
+**KSA — appendice données de mineurs (SDAIA)** : l'hébergement est en **Oracle Cloud EAU** ; tout accès
+depuis la **KSA** = **traitement transfrontière** au sens saoudien. Pour un client KSA, ajouter un
+**appendice DPA** intégrant la *Children and Incompetents' Data Protection Policy* de la SDAIA :
+- l'école **obtient et conserve la preuve du consentement du tuteur légal** de l'élève mineur (sauf
+  exceptions liées à la sécurité de l'enfant) et l'informe des finalités/méthodes de collecte ;
+- **interdiction stricte de traitement automatisé à des fins de profilage ou de marketing direct**.
+  → ATLAS est conforme *par conception* : le seul traitement automatisé est l'**évaluation
+  pédagogique** (Elo), jamais du profilage marketing ni de la publicité — à **déclarer explicitement**
+  dans l'appendice ;
+- **stocker la donnée d'un résident saoudien hors du Royaume** (même dans le GCC) exige l'**approbation
+  préalable des autorités saoudiennes** (règles de transfert transfrontière SDAIA). Deux voies, au choix
+  du client : (a) l'école **documente cette approbation/exception** (contractuel, voie beta) ; ou (b)
+  **anonymisation / tokenisation avant que la donnée ne quitte le territoire KSA** — **feature
+  d'ingénierie lourde, NON implémentée, roadmap** à n'ouvrir que si un client KSA public/strict se
+  confirme (l'archi actuelle héberge tout en clair côté EAU).
+- Réf. : sdaia.gov.sa (PDPL + Children's Data Protection Policy) ; vision2030 (cadre gouvernance data).
+
+> **Portée beta** : le pilote vise une école EAU (privée ou publique selon le client signé). L'appendice
+> KSA ne s'active que pour un client saoudien — à ne pas bloquer la beta EAU. Aucun code KSA à livrer
+> tant qu'aucun client KSA n'est confirmé ; le point (b) tokenisation est explicitement roadmap.
 
 ---
 

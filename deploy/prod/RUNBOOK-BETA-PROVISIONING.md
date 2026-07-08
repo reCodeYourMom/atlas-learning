@@ -147,8 +147,10 @@ CONFIGURE_TOTP forcés au 1er login).
 ### 5. Config conformité dans le `.env` (AVANT toute vraie donnée)
 ```bash
 grep -q '^RETENTION_DAYS=' .env || echo 'RETENTION_DAYS=30' >> .env   # base légale ci-dessus
-# POSTMARK_TOKEN=...   # requis pour l'envoi réel des liens magiques parents (sinon aucun email)
-# EMAIL_FROM=no-reply@app.<domaine>
+# Email = OCI Email Delivery (SMTP). Coller les identifiants générés dans OCI (non ré-affichables) :
+#   SMTP_HOST=smtp.email.me-abudhabi-1.oci.oraclecloud.com  SMTP_PORT=587
+#   SMTP_USERNAME=<OCI>  SMTP_PASSWORD=<OCI>  EMAIL_FROM=no-reply@mail.atlaslearning.ae
+# Sans SMTP_* → aucun lien magique n'est envoyé (parents ET linguistes).
 docker compose up -d   # recharger l'env
 ```
 `GROQ_API_KEY` : laisser la clé dev pour la beta (rotation post-beta, §7). Vide = OK sauf pour
@@ -193,6 +195,6 @@ Authenticator) → session par rôle. Confirme que TOTP est bien exigé (preuve 
 - [ ] DNS `app.`/`auth.` → IP, TLS Caddy émis
 - [ ] `deploy.sh` OK, migrations 0001→0016 passées, `PROVISION_ON_BOOT=0`
 - [ ] `RETENTION_DAYS=30` posé + reflété dans le DPA école (validé par le conseil)
-- [ ] `POSTMARK_TOKEN` posé (liens magiques parents)
+- [ ] SMTP OCI posé (`SMTP_HOST/PORT/USERNAME/PASSWORD` + `EMAIL_FROM`) — liens magiques parents & linguistes
 - [ ] 3 crons installés (backup **off-box** + retention + quarantine), dry-runs validés
 - [ ] Smoke OK (health, issuer OIDC, HSTS) + login TOTP prouvé par rôle

@@ -91,7 +91,8 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       POSTMARK_TOKEN: ${POSTMARK_TOKEN:-}
       EMAIL_FROM: ${EMAIL_FROM:-no-reply@${APP_DOMAIN}}
-      PROVISION_ON_BOOT: ${PROVISION_ON_BOOT:-1}
+      # 0 par défaut : ne JAMAIS semer la démo en prod sans opt-in explicite (.env).
+      PROVISION_ON_BOOT: ${PROVISION_ON_BOOT:-0}
     depends_on:
       app-db:
         condition: service_healthy

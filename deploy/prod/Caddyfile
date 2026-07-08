@@ -3,9 +3,38 @@
 #
 # App : front Next.js à la racine, backend FastAPI sous /api/* (préfixe retiré → même origine).
 # Auth : Keycloak sur son propre sous-domaine (issuer cohérent navigateur ⇄ backend).
+#
+# En-têtes sécu (revue 2026-07-07) : HSTS 1 an, nosniff, referrer strict, anti-framing.
+# Snippet commun aux deux vhosts ; la CSP n'est posée QUE sur l'app (Keycloak gère la
+# sienne — en superposer une seconde casserait la console admin).
+
+(security_headers) {
+	header {
+		# TLS partout, 1 an, sous-domaines inclus (app. + auth. sur le même domaine).
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Caddy ne divulgue pas sa version.
+		-Server
+	}
+}
 
 {$APP_DOMAIN} {
 	encode gzip
+	import security_headers
+
+	header {
+		# Anti-clickjacking : les deux formes (frame-ancestors pour les navigateurs
+		# modernes, X-Frame-Options pour les anciens).
+		X-Frame-Options "DENY"
+		# CSP — compromis documenté : 'unsafe-inline' est requis par (a) les scripts
+		# d'hydratation inline de Next.js (pas de nonces sans refonte du front) et
+		# (b) l'UI statique du backend (src/api/static/index.html : <style>/<script>
+		# inline + handlers onclick). Aucune ressource externe : next/font auto-héberge
+		# les polices au build, tous les fetch sont same-origin → tout le reste est
+		# verrouillé sur 'self'. À durcir (nonces) quand le front les supportera.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	}
 
 	# /api/* → backend (handle_path RETIRE le préfixe /api : le backend voit /auth/providers, etc.)
 	handle_path /api/* {
@@ -20,5 +49,8 @@
 
 {$AUTH_DOMAIN} {
 	encode gzip
+	import security_headers
+	# Pas de CSP/X-Frame-Options ici : Keycloak pose ses propres en-têtes
+	# (frame-ancestors 'self', etc.) — les doubler bloquerait la console admin.
 	reverse_proxy keycloak:8080
 }

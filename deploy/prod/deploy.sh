@@ -50,6 +50,11 @@ ensure_secret APP_DB_PASSWORD
 ensure_secret KC_DB_PASSWORD
 ensure_secret KC_ADMIN_PASSWORD
 ensure_secret OIDC_GENERIC_CLIENT_SECRET
+# Mot de passe INITIAL des comptes démo Keycloak : généré par instance (jamais
+# versionné — revue adversariale 2026-07-07 : l'ancien mdp statique du template,
+# publié dans le repo, permettait la course au premier login). temporary:true +
+# UPDATE_PASSWORD dans le realm : Keycloak force son remplacement au 1er login.
+ensure_secret DEMO_ACCOUNTS_PASSWORD
 
 # --- 2. garde-fou domaines ------------------------------------------
 APP_D="$(get_var APP_DOMAIN)"; AUTH_D="$(get_var AUTH_DOMAIN)"
@@ -59,13 +64,19 @@ if [[ "$APP_D" == *atlas.example ]] || [[ "$AUTH_D" == *atlas.example ]]; then
   exit 1
 fi
 
-# --- 3. realm runtime (secret injecté, jamais versionné) -------------
+# --- 3. realm runtime (secrets + domaine injectés, jamais versionnés) --
 echo "[deploy] génération du realm Keycloak runtime…"
 mkdir -p keycloak/import
 OIDC_SECRET="$(get_var OIDC_GENERIC_CLIENT_SECRET)"
-sed "s|CHANGE_ME_atlas_kc_client_secret|${OIDC_SECRET}|" \
+DEMO_PASSWORD="$(get_var DEMO_ACCOUNTS_PASSWORD)"
+# redirectUris/webOrigins explicites (plus de wildcard) : dérivés d'APP_DOMAIN,
+# même mécanisme de substitution que le secret client. Le mot de passe démo est
+# injecté au même endroit : AUCUN credential en clair dans un fichier versionné.
+sed -e "s|CHANGE_ME_atlas_kc_client_secret|${OIDC_SECRET}|" \
+    -e "s|CHANGE_ME_demo_password|${DEMO_PASSWORD}|g" \
+    -e "s|CHANGE_ME_app_domain|${APP_D}|g" \
   keycloak/atlas-realm.template.json > keycloak/import/atlas-realm.json
-echo "[deploy]   → keycloak/import/atlas-realm.json (secret synchronisé)"
+echo "[deploy]   → keycloak/import/atlas-realm.json (secret + mdp démo + redirectUris synchronisés)"
 
 # --- 4. build + up ---------------------------------------------------
 echo "[deploy] docker compose up -d --build…"
@@ -75,4 +86,7 @@ echo ""
 echo "[deploy] ✓ stack lancée. Suivi des migrations + provision :"
 echo "         docker compose logs -f backend"
 echo "[deploy]   App : https://${APP_D}   ·   Auth : https://${AUTH_D}/admin"
-echo "[deploy]   Comptes démo : admin@/prof@/parent@demo.atlas  (mdp temp ChangeMe1234!, TOTP au 1er login)"
+echo "[deploy]   Comptes démo : admin@/prof@/parent@demo.atlas"
+echo "[deploy]     mdp initial = DEMO_ACCOUNTS_PASSWORD dans .env (généré, jamais versionné)"
+echo "[deploy]     au 1er login : changement de mdp FORCÉ (temporary) + enrôlement TOTP obligatoire"
+echo "[deploy]   Données démo côté app : PROVISION_ON_BOOT=0 par défaut → mettre 1 dans .env pour les semer (cf. README §3)"

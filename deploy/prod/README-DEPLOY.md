@@ -83,32 +83,43 @@ APP_DOMAIN=app.tondomaine.com AUTH_DOMAIN=auth.tondomaine.com ./deploy.sh
 ```bash
 docker compose logs -f backend     # voir migrations + provision (récupère les IDs école/classe/enfant)
 ```
-Le backend migre (`alembic upgrade head`) et provisionne le tenant démo + les 4 mouvements
-(`PROVISION_ON_BOOT=1`). Idempotent : un redémarrage ne duplique rien.
+Le backend migre (`alembic upgrade head`) au boot. **`PROVISION_ON_BOOT=0` par défaut** : en prod
+on ne sème jamais la démo. Pour une instance de **démonstration** uniquement, mettre
+`PROVISION_ON_BOOT=1` dans `.env` (crée tenant démo + 4 mouvements, idempotent) puis remettre `0`
+avant d'accueillir de vraies données élèves.
 
 > Secrets gérés par `deploy.sh` : `AUTH_SECRET` (HMAC sessions), `APP_DB_PASSWORD`/`KC_DB_PASSWORD`,
-> `KC_ADMIN_PASSWORD` (console `https://AUTH_DOMAIN/admin`), `OIDC_GENERIC_CLIENT_SECRET`. Tu peux les
+> `KC_ADMIN_PASSWORD` (console `https://AUTH_DOMAIN/admin`), `OIDC_GENERIC_CLIENT_SECRET`,
+> `DEMO_ACCOUNTS_PASSWORD` (mdp initial des 3 comptes démo, cf. §6). Tu peux les
 > éditer à la main dans `.env` si tu préfères les fournir toi-même.
 
 ## 6. Comptes & TOTP (Authy / Google Authenticator)
 
-Le realm crée 3 comptes, mot de passe temporaire `ChangeMe1234!`, **TOTP requis au 1er login** :
-`admin@demo.atlas` (admin pédago) · `prof@demo.atlas` (enseignant) · `parent@demo.atlas` (parent).
+Le realm crée 3 comptes : `admin@demo.atlas` (admin pédago) · `prof@demo.atlas` (enseignant) ·
+`parent@demo.atlas` (parent). Leur mot de passe initial est **généré par `deploy.sh`**
+(`DEMO_ACCOUNTS_PASSWORD` dans `.env` — jamais versionné, plus de mot de passe public dans le
+repo) et il est **réellement temporaire** : Keycloak force son **remplacement au 1er login**
+(`UPDATE_PASSWORD`), puis l'**enrôlement TOTP** (`CONFIGURE_TOTP`).
 
-1. Ouvre `https://APP_DOMAIN` → bouton **« Continuer avec Atlas »** → page Keycloak.
-2. Saisis l'email + `ChangeMe1234!` → Keycloak demande de **scanner le QR** avec Authy/Google
-   Authenticator → entre le code à 6 chiffres → session Atlas ouverte, redirigée par rôle.
-3. (Reco) Change les mots de passe par défaut dans la console Keycloak admin.
+1. Récupère le mot de passe : `grep DEMO_ACCOUNTS_PASSWORD .env` (sur la VM).
+2. Ouvre `https://APP_DOMAIN` → bouton **« Continuer avec Atlas »** → page Keycloak.
+3. Saisis l'email + le mot de passe → Keycloak **impose un nouveau mot de passe**, puis demande
+   de **scanner le QR** avec Authy/Google Authenticator → code à 6 chiffres → session Atlas
+   ouverte, redirigée par rôle.
 
 Pour ajouter d'autres utilisateurs : console Keycloak (`https://AUTH_DOMAIN/admin`, realm *atlas*) —
 crée l'user **et** l'email correspondant doit exister côté app (provision ou liaison staff).
+**TOTP realm-level** : `CONFIGURE_TOTP` est une *required action* par défaut du realm
+(`defaultAction: true`) — TOUT nouvel utilisateur (dont les vrais comptes du pilote créés via la
+console) devra enrôler un TOTP à son 1er login, pas seulement les 3 comptes démo.
 
 ## 7. Vérification
 
 ```bash
 API_BASE=https://APP_DOMAIN/api ./verify_deploy.sh
 ```
-Puis le parcours produit, par rôle (les IDs viennent des logs de provision, §5) :
+Puis le parcours produit, par rôle (les IDs viennent des logs de provision, §5 —
+nécessite une instance de démo avec `PROVISION_ON_BOOT=1`, cf. §3) :
 
 | Mouvement | Écran |
 |---|---|
@@ -126,6 +137,14 @@ Puis le parcours produit, par rôle (les IDs viennent des logs de provision, §5
   le disque). Planifie avec `backup.cron` (quotidien 02:30). Restauration : `./restore.sh app|keycloak`.
   > ⚠️ Le free tier = **DB auto-gérée** : sans cette sauvegarde off-box, une perte de VM = perte des
   > données élèves. C'est le seul vrai risque « pérenne » à couvrir avant un pilote réel.
+- **Purge de rétention (PDPL)** : `scripts/purge_retention.py` supprime durement les élèves
+  soft-deleted depuis plus de `RETENTION_DAYS` (défaut 30) + les jti de liens magiques expirés.
+  **Dry-run par défaut** ; purge réelle via `--execute` ; chaque purge journalisée dans AuditLog.
+  Planifie avec `retention.cron` (quotidien 03:10) — à installer **à côté de `backup.cron`**.
+- **Quarantaine des items dérivants** : `scripts/run_quarantine.py` (dry-run par défaut,
+  `--execute`, réversible via review.promote). Planifie avec `quarantine.cron` (quotidien 03:40).
+- **Installation des 3 crons** (`backup.cron` + `retention.cron` + `quarantine.cron`) :
+  `crontab -e` sur la VM et coller les lignes de chaque fichier (adapter le chemin du bundle).
 - **Logs** : `docker compose logs -f <service>`.
 - **Mise à jour** : `git pull && ./deploy.sh`.
 - **Sync nocturne rostering** (si Google branché plus tard) : cron `scripts/roster_sync.py` (cf. Runbook §6).
@@ -136,9 +155,33 @@ Puis le parcours produit, par rôle (les IDs viennent des logs de provision, §5
   (déjà posés). Si boucle de redirection https, vérifier que Caddy transmet `X-Forwarded-Proto`.
 - **GROQ_API_KEY** vide = OK (démo) ; requis seulement pour *générer/traduire* des items (console arabe « Proposer »).
 - **POSTMARK_TOKEN** vide = aucun email (liens magiques parents non envoyés) ; brancher Postmark/Resend pour la prod réelle.
-- **Données réelles** : passer `PROVISION_ON_BOOT=0` une fois le tenant pilote en place pour ne plus injecter la démo.
-- **Compte smoke `test@demo.atlas`** (dans le realm, mdp non-temporaire, **sans TOTP**) : pratique pour
-  les checks, mais **désactive-le dans la console Keycloak avant un pilote réel** (faille si laissé actif).
+- **Données réelles** : `PROVISION_ON_BOOT=0` est le défaut — la démo n'est injectée que si tu
+  passes explicitement à `1` (cf. §3), et il faut remettre `0` ensuite.
+- **Compte smoke `test@demo.atlas`** : **retiré du realm prod** (revue sécu 2026-07-07 — mdp connu,
+  sans TOTP, avec ROPC = contournement du SSO). Il ne vit plus que dans le realm de dérisquage local
+  (`keycloak/derisk/atlas-realm.derisk.json`, importé uniquement par `docker-compose.keycloak.yml`).
+  Ne le réintroduis jamais dans `atlas-realm.template.json`.
+- **Client OIDC prod** : `directAccessGrantsEnabled=false` (pas de password grant) et
+  `redirectUris`/`webOrigins` **explicites**, dérivés d'`APP_DOMAIN` par `deploy.sh` (plus de wildcard).
 - **Realm** : le secret OIDC n'est plus dans `keycloak/atlas-realm.json` (renommé en
   `atlas-realm.template.json`). Ne réintroduis pas de secret en clair dans un fichier versionné ;
   `deploy.sh` génère `keycloak/import/` (gitignoré) à chaque déploiement.
+- **Harnais de dérisquage** (`docker-compose.keycloak.yml`) : Keycloak en mode `start` (plus de
+  `start-dev`) et credentials admin **obligatoires** via `KC_ADMIN_USER`/`KC_ADMIN_PASSWORD`/
+  `KC_DB_PASSWORD` — le compose échoue explicitement s'ils manquent (fini `admin/admin`).
+
+## 10. Prérequis pilote (sécurité / conformité — à faire AVANT de vraies données élèves)
+
+1. **Chiffrement at-rest avec CMK (OCI Vault)** : aujourd'hui les emails (parents/staff) sont
+   stockés **en clair** en base. Mitigation infra à activer côté OCI : créer un Vault + une
+   *Customer-Managed Key*, puis chiffrer les volumes block/boot de la VM avec cette CMK
+   (Console OCI → Block Storage → volume → *Assign* la clé du Vault). Sans ça, un snapshot de
+   disque expose les emails.
+2. **Rotation de la clé Groq** : la clé actuelle vit dans le `.env` **local** de dev (jamais
+   commitée, mais active). La **rotater** (console Groq → révoquer + regénérer) avant le pilote,
+   et ne poser la nouvelle que dans le `.env` de la VM.
+3. **Rétention des données mineurs** : la purge automatisée est **livrée**
+   (`scripts/purge_retention.py` : dry-run par défaut, `--execute` pour purger, fenêtre
+   `RETENTION_DAYS` — défaut 30 jours, journalisation AuditLog). **À brancher en cron avant le
+   pilote** : installer `retention.cron` (cf. §8) et aligner `RETENTION_DAYS` sur la durée de
+   rétention promise aux écoles.

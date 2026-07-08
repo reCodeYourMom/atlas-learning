@@ -1,0 +1,11 @@
+# Atlas — purge de rétention des données mineurs (03:10 UTC, quotidien).
+# Exécute scripts/purge_retention.py DANS le conteneur backend (DATABASE_URL déjà posée) :
+#   --execute = purge réelle (le script seul est un dry-run) ; chaque purge est
+#   journalisée dans AuditLog. Ne touche QUE les élèves soft-deleted depuis plus de
+#   RETENTION_DAYS (défaut 30 — surchargable dans l'environnement du service backend),
+#   et les jti de liens magiques expirés (table consumed_token).
+# Installer sur la VM :
+#   crontab -e
+# puis coller la ligne ci-dessous en adaptant le chemin absolu du bundle.
+
+10 3 * * * cd /home/ubuntu/04_code/deploy/prod && /usr/bin/docker compose exec -T backend python scripts/purge_retention.py --execute >> ./retention.log 2>&1

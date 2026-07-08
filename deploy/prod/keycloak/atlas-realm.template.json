@@ -2,6 +2,14 @@
   "realm": "atlas",
   "enabled": true,
   "sslRequired": "external",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
   "loginWithEmailAllowed": true,
@@ -11,6 +19,53 @@
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyDigits": 6,
   "otpPolicyPeriod": 30,
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PROFILE",
+      "name": "Update Profile",
+      "providerId": "UPDATE_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 40,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 50,
+      "config": {}
+    },
+    {
+      "alias": "update_user_locale",
+      "name": "Update User Locale",
+      "providerId": "update_user_locale",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 1000,
+      "config": {}
+    }
+  ],
   "clients": [
     {
       "clientId": "atlas-web",
@@ -20,15 +75,11 @@
       "publicClient": false,
       "secret": "CHANGE_ME_atlas_kc_client_secret",
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": [
-        "http://localhost:8000/api/oauth/generic/callback",
-        "http://localhost:3000/api/oauth/generic/callback",
-        "https://*/api/oauth/generic/callback"
-      ],
-      "webOrigins": ["+"],
-      "attributes": { "post.logout.redirect.uris": "+" },
+      "redirectUris": ["https://CHANGE_ME_app_domain/api/oauth/generic/callback"],
+      "webOrigins": ["https://CHANGE_ME_app_domain"],
+      "attributes": { "post.logout.redirect.uris": "https://CHANGE_ME_app_domain/*" },
       "protocolMappers": [
         {
           "name": "atlas-audience",
@@ -60,23 +111,14 @@
   ],
   "users": [
     {
-      "username": "test@demo.atlas",
-      "email": "test@demo.atlas",
-      "firstName": "Smoke",
-      "lastName": "Test",
-      "emailVerified": true,
-      "enabled": true,
-      "credentials": [{ "type": "password", "value": "Test1234!", "temporary": false }]
-    },
-    {
       "username": "admin@demo.atlas",
       "email": "admin@demo.atlas",
       "firstName": "Demo",
       "lastName": "Admin",
       "emailVerified": true,
       "enabled": true,
-      "requiredActions": ["CONFIGURE_TOTP"],
-      "credentials": [{ "type": "password", "value": "ChangeMe1234!", "temporary": false }]
+      "requiredActions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"],
+      "credentials": [{ "type": "password", "value": "CHANGE_ME_demo_password", "temporary": true }]
     },
     {
       "username": "prof@demo.atlas",
@@ -85,8 +127,8 @@
       "lastName": "Teacher",
       "emailVerified": true,
       "enabled": true,
-      "requiredActions": ["CONFIGURE_TOTP"],
-      "credentials": [{ "type": "password", "value": "ChangeMe1234!", "temporary": false }]
+      "requiredActions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"],
+      "credentials": [{ "type": "password", "value": "CHANGE_ME_demo_password", "temporary": true }]
     },
     {
       "username": "parent@demo.atlas",
@@ -95,8 +137,8 @@
       "lastName": "Parent",
       "emailVerified": true,
       "enabled": true,
-      "requiredActions": ["CONFIGURE_TOTP"],
-      "credentials": [{ "type": "password", "value": "ChangeMe1234!", "temporary": false }]
+      "requiredActions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"],
+      "credentials": [{ "type": "password", "value": "CHANGE_ME_demo_password", "temporary": true }]
     }
   ]
 }

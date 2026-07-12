@@ -399,6 +399,30 @@ export const DICT = {
   "it.export": { en: "Export data", ar: "تصدير البيانات" },
   "it.noaudit": { en: "No audit entries yet.", ar: "لا توجد سجلات تدقيق بعد." },
 
+  // — Vue curriculaire (Lot B, B3) : console IT + badges standards —
+  "curriculum.title": { en: "Curriculum view", ar: "عرض المنهج" },
+  "curriculum.hint": {
+    en: "Standards framework shown across teacher and school views. Atlas = neutral view, no standard labels.",
+    ar: "إطار المعايير المعروض في شاشات المعلّم والمدرسة. أطلس = عرض محايد، دون رموز معايير.",
+  },
+  "curriculum.current": { en: "Active", ar: "الفعّال" },
+  "curriculum.select": { en: "Displayed framework", ar: "الإطار المعروض" },
+  "curriculum.fw.atlas": { en: "Atlas (neutral)", ar: "أطلس (محايد)" },
+  "curriculum.fw.ccssm": { en: "Common Core (CCSS-M)", ar: "المعايير الأمريكية (CCSS-M)" },
+  "curriculum.fw.uknc": { en: "UK National Curriculum", ar: "المنهج الوطني البريطاني" },
+  "curriculum.fw.moe": { en: "MoE UAE", ar: "وزارة التربية والتعليم (الإمارات)" },
+  "curriculum.error": { en: "Could not update the curriculum view.", ar: "تعذّر تحديث عرض المنهج." },
+
+  // — Couverture du programme (Lot B, B5 / D-B5) : rapport école —
+  "coverage.title": { en: "Curriculum coverage", ar: "تغطية المنهج" },
+  "coverage.mastered": { en: "aligned skills mastered", ar: "مهارات متوافقة مُتقَنة" },
+  "coverage.covered": { en: "Covered", ar: "مُغطًّى" },
+  "coverage.threshold": { en: "cohort mastery threshold", ar: "عتبة إتقان الفوج" },
+  "coverage.note": {
+    en: "Covered = every exactly-aligned skill mastered at cohort level — never claimed for individual students.",
+    ar: "مُغطًّى = إتقان كل المهارات المتوافقة تمامًا على مستوى الفوج — لا يُدَّعى ذلك أبدًا لطالب بعينه.",
+  },
+
   // — Back-office linguiste (persona dédié) : file de validation AR —
   "ling.login.title": { en: "Linguist review access", ar: "دخول المراجع اللغوي" },
   "ling.login.intro": {

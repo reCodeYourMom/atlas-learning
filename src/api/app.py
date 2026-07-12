@@ -10,7 +10,7 @@ import os
 import secrets
 import uuid
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +31,7 @@ from src.api.session_service import (
 from src.api.views_service import (
     class_digest,
     class_gaps,
+    curriculum_coverage,
     list_students,
     referentiel_graph,
     remediation_preview,
@@ -49,7 +50,7 @@ from src.items.arabic import (
     ar_math_preserved,
     translate_to_arabic,
 )
-from src.models.base import Role
+from src.models.base import CurriculumView, Role
 from src.models.item import Item
 from src.models.measurement import School, Student
 from src.models.audit import AuditLog
@@ -426,6 +427,54 @@ def admin_set_integration(body: IntegrationIn,
                resource_type="organization", resource_id=org.id)
     s.commit()
     return {"provider": integ.provider, "status": integ.status}
+
+
+def _require_curriculum_admin_org(ctx: UserContext, s: Session) -> Organization:
+    """Console curriculum (B3) : réglage d'AFFICHAGE pédagogique — ouvert au ped admin
+    en plus de l'IT admin (même résolution de tenant que _require_it_admin_org)."""
+    if not ctx.has(Role.IT_ADMIN, Role.PED_ADMIN, Role.SUPER_ADMIN):
+        raise HTTPException(status_code=403, detail="rôle admin requis")
+    if len(ctx.org_ids) != 1:
+        raise HTTPException(status_code=400, detail="organisation non résolue")
+    org = s.get(Organization, next(iter(ctx.org_ids)))
+    if org is None or org.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="organisation introuvable")
+    return org
+
+
+@app.get("/admin/curriculum")
+def admin_curriculum(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
+    """Vue curriculaire du tenant (B3) : framework affiché + frameworks disponibles."""
+    org = _require_curriculum_admin_org(ctx, s)
+    return {
+        "organization": {"id": str(org.id), "name": org.name},
+        "curriculum_view": org.curriculum_view.value,
+        "available_frameworks": [v.value for v in CurriculumView],
+    }
+
+
+class CurriculumViewIn(BaseModel):
+    curriculum_view: str    # validé contre l'enum ci-dessous (400 explicite, pas 422)
+
+
+@app.post("/admin/curriculum")
+def admin_set_curriculum(body: CurriculumViewIn,
+                         ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
+    """Bascule la vue curriculaire du tenant (B3) — un seul framework actif en v1 (D-B3)."""
+    org = _require_curriculum_admin_org(ctx, s)
+    try:
+        view = CurriculumView(body.curriculum_view)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"curriculum_view non supporté (attendu : {[v.value for v in CurriculumView]})",
+        )
+    org.curriculum_view = view
+    log_action(s, action="curriculum.set_view", user_id=ctx.user_id,
+               resource_type="organization", resource_id=org.id,
+               details={"curriculum_view": view.value})
+    s.commit()
+    return {"curriculum_view": org.curriculum_view.value}
 
 
 @app.post("/admin/rostering/sync")
@@ -1011,6 +1060,7 @@ def _get_live_school(s: Session, school_id: uuid.UUID) -> School:
 class StartSessionIn(BaseModel):
     student_id: uuid.UUID                # school_id dérivé de l'élève (pas de confiance au client)
     target_competency_ids: Optional[List[uuid.UUID]] = None
+    locale: Literal["en", "ar"] = "en"   # langue servie (C-0) — validée ici (422 sinon)
 
 
 class ResponseIn(BaseModel):
@@ -1032,8 +1082,9 @@ def create_session(body: StartSessionIn, ctx: UserContext = Depends(get_context)
                    s: Session = Depends(get_db)):
     st = _authorize_student(ctx, s, body.student_id)
     sess = start_session(s, student_id=st.id, school_id=st.school_id,
-                         target_competency_ids=body.target_competency_ids)
-    return {"session_id": str(sess.id), "status": sess.status}
+                         target_competency_ids=body.target_competency_ids,
+                         locale=body.locale)
+    return {"session_id": str(sess.id), "status": sess.status, "locale": sess.locale.value}
 
 
 @app.get("/sessions/{session_id}/next-item")
@@ -1395,7 +1446,12 @@ def school_proof_ep(school_id: uuid.UUID, window_days: int = 30,
     log_action(s, action="school.view_proof", school_id=school_id, user_id=ctx.user_id,
                resource_type="school", resource_id=school_id)
     s.commit()
-    return proof_surfaces(s, school_id, window_days=min(max(window_days, 1), 365))
+    payload = proof_surfaces(s, school_id, window_days=min(max(window_days, 1), 365))
+    # B5 : section « Couverture du programme » — ADDITIVE, absente en vue ATLAS
+    coverage = curriculum_coverage(s, school_id)
+    if coverage is not None:
+        payload["curriculum_coverage"] = coverage
+    return payload
 
 
 _static = Path(__file__).resolve().parent / "static"

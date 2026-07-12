@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { useLang } from "@/components/LanguageProvider";
 import { Card, Chip, EmptyState, ErrorPanel, Loading, SectionTitle, cx } from "@/components/ui";
+import { StandardBadge } from "@/components/StandardBadge";
 import { api } from "@/lib/api";
 import type { ClassDigest, ClassGap, StudentRow } from "@/lib/types";
 import { eloToLevel } from "@/lib/mastery";
@@ -153,9 +154,11 @@ function DigestBanner({ digest }: { digest: ClassDigest }) {
           <p className="text-xs font-medium uppercase tracking-wide text-brand-600">
             {t("digest.priority")}
           </p>
-          <p className="mt-0.5 text-sm font-medium text-sand-800">
+          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm font-medium text-sand-800">
             {lang === "ar" ? top.root_cause_label_ar : top.root_cause_label_en}
-            <span className="num ms-2 text-xs font-normal text-sand-500">
+            {/* B4 : code standard si vue curriculaire — absent en vue ATLAS. */}
+            <StandardBadge standard={top.standard} />
+            <span className="num text-xs font-normal text-sand-500">
               · {top.student_count} {t("class.gaps.affected")}
             </span>
           </p>
@@ -178,6 +181,16 @@ function DigestBanner({ digest }: { digest: ClassDigest }) {
             {digest.emerging_gaps.map((g) => (
               <Chip key={g.root_cause} className="bg-gold-50 text-gold-700 ring-gold-200">
                 {lang === "ar" ? g.root_cause_label_ar : g.root_cause_label_en}
+                {/* B4 : code standard inline (le chip est déjà un badge) — absent en vue ATLAS. */}
+                {g.standard && (
+                  <span
+                    className="font-mono text-[10px]"
+                    title={lang === "ar" ? g.standard.wording_ar : g.standard.wording_en}
+                    data-ltr
+                  >
+                    {g.standard.code}
+                  </span>
+                )}
                 <span className="num ms-1">· {g.student_count}</span>
               </Chip>
             ))}
@@ -208,7 +221,11 @@ function PriorityRow({ gap, rank }: { gap: ClassGap; rank: number }) {
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="font-medium text-sand-800">{rootLabel}</p>
+          <p className="flex min-w-0 flex-wrap items-center gap-1.5 font-medium text-sand-800">
+            {rootLabel}
+            {/* B4 : code standard si vue curriculaire — absent en vue ATLAS. */}
+            <StandardBadge standard={gap.standard} />
+          </p>
           <Chip className="num shrink-0 bg-gold-50 text-gold-700 ring-gold-200">
             {gap.student_count} {t("class.gaps.affected")}
           </Chip>

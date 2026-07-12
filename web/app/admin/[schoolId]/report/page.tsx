@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { useLang } from "@/components/LanguageProvider";
 import { Button, ErrorPanel, Loading, cx } from "@/components/ui";
 import { api } from "@/lib/api";
-import type { ProofSurfaces, SchoolOverview } from "@/lib/types";
+import type { CurriculumCoverage, ProofSurfaces, SchoolOverview } from "@/lib/types";
 
 export default function ReportPage({ params }: { params: { schoolId: string } }) {
   return (
@@ -78,6 +78,10 @@ function Report({ schoolId }: { schoolId: string }) {
         </div>
 
         {proof && <ProofBlock proof={proof} />}
+
+        {/* Couverture du programme (B5, D-B5) — section ADDITIVE, absente en vue ATLAS.
+            L'argument commercial : les résultats exprimés dans les codes de VOTRE programme. */}
+        {proof?.curriculum_coverage && <CoverageBlock coverage={proof.curriculum_coverage} />}
 
         <div className="mt-8 grid gap-8 sm:grid-cols-2">
           <ReportList
@@ -211,6 +215,68 @@ function ProofBlock({ proof }: { proof: ProofSurfaces }) {
       </div>
 
       <p className="mt-4 text-[11px] text-sand-400">{t("proof.honest")}</p>
+    </section>
+  );
+}
+
+function CoverageBlock({ coverage }: { coverage: CurriculumCoverage }) {
+  const { t, lang } = useLang();
+  return (
+    <section className="mt-8">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="mb-2 text-sm font-semibold text-sand-700">{t("coverage.title")}</h3>
+        <span className="font-mono text-[11px] text-sand-400" data-ltr>
+          {coverage.framework.replace("_", " ")}
+        </span>
+      </div>
+      <table className="w-full text-sm">
+        <tbody className="divide-y divide-sand-100">
+          {coverage.standards.map((s) => (
+            <tr key={s.code}>
+              {/* CRIT-3 : MoE n'a pas de code officiel → on affiche le label, pas la
+                  clé technique en font-mono (afficher NUM_OPS.G4-G5 comme un code
+                  du ministère serait faux). */}
+              {s.display_code ? (
+                <td className="py-2 pe-3 font-mono text-xs text-sand-500" data-ltr>
+                  {s.display_code}
+                </td>
+              ) : (
+                <td className="py-2 pe-3 text-xs text-sand-400">—</td>
+              )}
+              <td className="py-2 text-sand-700">{lang === "ar" ? s.label_ar : s.label}</td>
+              {/* Règle B5 : « k/n compétences alignées sur S maîtrisées ». */}
+              <td className="whitespace-nowrap py-2 text-end text-xs text-sand-500">
+                <span className="num">
+                  {s.mastered_count}/{s.total}
+                </span>{" "}
+                {t("coverage.mastered")}
+              </td>
+              {/* Colonne verdict UNIQUEMENT si le framework a une notion de « couvert »
+                  (CCSS/UK). MoE : shows_covered=false → colonne absente (une croix
+                  toujours fausse serait un bug déguisé en verdict). */}
+              {coverage.shows_covered && (
+                <td className="whitespace-nowrap py-2 ps-3 text-end">
+                  {s.covered ? (
+                    <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      ✓ {t("coverage.covered")}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-sand-400">{t("common.inprogress")}</span>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* Garde-fou anti-sur-claim (B5) : jamais « meets {code} » au niveau élève.
+          Le seuil de maîtrise cohorte est explicite (MAJ-1). */}
+      <p className="mt-2 text-[11px] text-sand-400">
+        {t("coverage.note")}
+        {coverage.shows_covered
+          ? ` (${t("coverage.threshold")} ${Math.round(coverage.coverage_threshold * 100)}%)`
+          : ""}
+      </p>
     </section>
   );
 }

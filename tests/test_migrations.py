@@ -197,6 +197,112 @@ def test_role_linguist_migration_upgrade_downgrade():
         os.unlink(tmp.name)
 
 
+def test_0019_schema_from_scratch_coherent_avec_les_modeles():
+    # DoD B2/C-0 : `alembic upgrade head` sur base VIERGE doit produire EXACTEMENT le
+    # schéma des modèles (create_all) — tables, colonnes, nullabilité, PK/FK/index/UNIQUE
+    # des objets 0019. Une divergence = dérive migration/modèles, invisible dans les
+    # tests applicatifs (qui créent le schéma via Base.metadata, jamais via Alembic).
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); tmp.close()
+    url = f"sqlite:///{tmp.name}"
+    old_env = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
+        command.upgrade(_alembic_cfg(), "head")
+        # import de TOUS les modules modèles pour peupler Base.metadata
+        from src.models import audit, competency, curriculum, item, measurement, org, session  # noqa: F401
+        from src.models.base import Base
+
+        engine = sa.create_engine(url)
+        insp = sa.inspect(engine)
+        migrated = set(insp.get_table_names()) - {"alembic_version"}
+        assert migrated == set(Base.metadata.tables), (
+            f"tables divergentes : migration seule {migrated - set(Base.metadata.tables)}, "
+            f"modèles seuls {set(Base.metadata.tables) - migrated}"
+        )
+        for t in sorted(migrated):
+            model_cols = {c.name: c for c in Base.metadata.tables[t].columns}
+            mig_cols = {c["name"]: c for c in insp.get_columns(t)}
+            assert set(model_cols) == set(mig_cols), (
+                f"{t} : colonnes divergentes {set(model_cols) ^ set(mig_cols)}"
+            )
+            for n, mc in model_cols.items():
+                assert bool(mc.nullable) == bool(mig_cols[n]["nullable"]), (
+                    f"{t}.{n} : nullable modèle={mc.nullable} vs migration={mig_cols[n]['nullable']}"
+                )
+        # contraintes structurantes des tables 0019 (crosswalk B2)
+        uqs = insp.get_unique_constraints("curriculum_standard")
+        assert any(u["name"] == "uq_curriculum_standard_framework_code"
+                   and u["column_names"] == ["framework", "code"] for u in uqs)
+        assert insp.get_pk_constraint("competency_curriculum_map")["constrained_columns"] == [
+            "competency_id", "standard_id"]
+        assert any(ix["name"] == "ix_ccm_standard" and ix["column_names"] == ["standard_id"]
+                   for ix in insp.get_indexes("competency_curriculum_map"))
+        fks = {f["referred_table"]: f["options"] for f in
+               insp.get_foreign_keys("competency_curriculum_map")}
+        assert fks == {"competency": {"ondelete": "CASCADE"},
+                       "curriculum_standard": {"ondelete": "CASCADE"}}
+        engine.dispose()
+    finally:
+        if old_env is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = old_env
+        os.unlink(tmp.name)
+
+
+def test_0019_defauts_sur_lignes_existantes_et_reversibilite():
+    # Les lignes ANTÉRIEURES à 0019 sont réputées anglaises (server_default 'en' —
+    # seule l'UI EN a servi des réponses avant) et les tenants existants restent en
+    # vue neutre 'ATLAS' (zéro régression B3). Puis downgrade → re-upgrade praticable.
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); tmp.close()
+    url = f"sqlite:///{tmp.name}"
+    old_env = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
+        cfg = _alembic_cfg()
+        command.upgrade(cfg, "0018_legal_hold")   # état AVANT le lot B/C-0
+
+        engine = sa.create_engine(url)
+        school, student, comp = _hex(uuid.uuid4()), _hex(uuid.uuid4()), _hex(uuid.uuid4())
+        sess, org = uuid.uuid4(), uuid.uuid4()
+        with engine.begin() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO organization (id, name) VALUES (:id, 'Legacy Org')"
+            ), {"id": _hex(org)})
+            conn.execute(sa.text(
+                "INSERT INTO assessment_session (id, school_id, student_id, status, started_at) "
+                "VALUES (:id, :school, :student, 'active', '2026-01-01 08:00:00')"
+            ), {"id": _hex(sess), "school": school, "student": student})
+            _insert_response(conn, rid=uuid.uuid4(), session_id=sess, item_id=uuid.uuid4(),
+                             created_at="2026-01-01 08:05:00", school_id=school,
+                             student_id=student, competency_id=comp)
+
+        command.upgrade(cfg, "head")              # 0019 : colonnes + tables crosswalk
+
+        with engine.connect() as conn:
+            assert conn.execute(sa.text("SELECT language FROM response")).scalar_one() == "en"
+            assert conn.execute(sa.text("SELECT locale FROM assessment_session")).scalar_one() == "en"
+            assert conn.execute(sa.text(
+                "SELECT curriculum_view FROM organization")).scalar_one() == "ATLAS"
+
+        # réversibilité : le downgrade retire tout, le re-upgrade repasse
+        command.downgrade(cfg, "0018_legal_hold")
+        insp = sa.inspect(engine)   # inspecteur NEUF : pas de cache d'avant-downgrade
+        assert "curriculum_standard" not in insp.get_table_names()
+        assert "competency_curriculum_map" not in insp.get_table_names()
+        assert not any(c["name"] == "language" for c in insp.get_columns("response"))
+        assert not any(c["name"] == "locale" for c in insp.get_columns("assessment_session"))
+        assert not any(c["name"] == "curriculum_view" for c in insp.get_columns("organization"))
+        command.upgrade(cfg, "head")
+        engine.dispose()
+    finally:
+        if old_env is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = old_env
+        os.unlink(tmp.name)
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

@@ -6,6 +6,7 @@ import type {
   ArItem,
   ClassDigest,
   ClassGap,
+  CurriculumSettings,
   LinguistItem,
   LinguistQueue,
   Me,
@@ -108,6 +109,14 @@ export const api = {
   rosteringSync: (force = false) =>
     request<RosterRun>(`/admin/rostering/sync${force ? "?force=true" : ""}`, { method: "POST" }),
   rosteringRuns: () => request<{ runs: RosterRun[] }>("/admin/rostering/runs"),
+
+  // — Console curriculum (B3) : framework d'affichage du tenant —
+  adminCurriculum: () => request<CurriculumSettings>("/admin/curriculum"),
+  adminSetCurriculum: (curriculum_view: string) =>
+    request<{ curriculum_view: string }>("/admin/curriculum", {
+      method: "POST",
+      body: JSON.stringify({ curriculum_view }),
+    }),
 
   // — Conformité PDPL —
   adminAudit: (limit = 8) => request<{ entries: AuditEntry[] }>(`/admin/audit?limit=${limit}`),

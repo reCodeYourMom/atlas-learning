@@ -2,6 +2,7 @@
 
 import { useLang } from "@/components/LanguageProvider";
 import { Chip, cx } from "@/components/ui";
+import { StandardBadge } from "@/components/StandardBadge";
 import type { CompetencyMastery } from "@/lib/types";
 import { abilityToPct, isEstimated, label, masteryState, STATE_STYLE } from "@/lib/mastery";
 
@@ -64,8 +65,10 @@ export function CompetencyCard({ c }: { c: CompetencyMastery }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-sand-800">{label(c, lang)}</p>
-          <p className="mt-0.5 text-xs text-sand-400" data-ltr>
-            {c.code.replace("MATH.", "")}
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-sand-400">
+            <span data-ltr>{c.code.replace("MATH.", "")}</span>
+            {/* B4 : code standard si vue curriculaire — absent en vue ATLAS. */}
+            <StandardBadge standard={c.standard} />
           </p>
         </div>
         <span className={cx("mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full", style.dot)} title={stateLabel} />

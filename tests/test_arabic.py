@@ -9,7 +9,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy.orm import Session
 
 from src.db import make_engine
-from src.items.arabic import TranslationError, ar_math_preserved, translate_to_arabic
+from src.items.arabic import (
+    TranslationError,
+    ar_fidelity_errors,
+    ar_math_preserved,
+    ar_mcq_structure_ok,
+    ar_stem_numbers_preserved,
+    translate_to_arabic,
+)
 from src.items.generation import GeneratedItem
 from src.items.review import (
     InvalidTransition,
@@ -131,6 +138,71 @@ def test_ar_fidelity_altered_number_flagged():
     ar = {"stem": "س", "options": ["2/8", "5/8"], "answer": "5/8"}  # nombre changé
     assert ar_math_preserved(en, ar) is False
     assert ar_math_preserved(en, None) is False
+
+
+# --- CRIT-1 (revue 2026-07-12) : le gate de fidélité était aveugle au stem ---
+
+def test_stem_numbers_preserved_true_when_digits_kept():
+    en = {"stem": "A set has 12 objects. 3/4 are red. How many?", "options": ["9"], "answer": "9"}
+    ar = {"stem": "مجموعة تحتوي على 12 جسم. 3/4 منها حمراء. كم؟", "options": ["9"], "answer": "9"}
+    assert ar_stem_numbers_preserved(en, ar) is True
+
+
+def test_stem_numbers_preserved_arabic_indic_digits_ok():
+    en = {"stem": "1/8 + 3/8 = ?", "options": ["4/8"], "answer": "4/8"}
+    ar = {"stem": "١/٨ + ٣/٨ = ؟", "options": ["4/8"], "answer": "4/8"}
+    assert ar_stem_numbers_preserved(en, ar) is True
+
+
+def test_stem_numbers_lost_when_fraction_written_as_word():
+    # le cas réel CRIT-1 : « 3/4 » remplacé par « ثلث » (un tiers)
+    en = {"stem": "A set has 12 objects. 3/4 are red.", "options": ["9"], "answer": "9"}
+    ar = {"stem": "مجموعة تحتوي على 12 جسم. ثلث هذه الأجسام حمراء.", "options": ["9"], "answer": "9"}
+    assert ar_stem_numbers_preserved(en, ar) is False
+    assert ar_stem_numbers_preserved(en, None) is False
+
+
+def test_mcq_structure_ok_and_misaligned():
+    en = {"stem": "x", "options": ["2/8", "4/8", "1/4"], "answer": "4/8"}   # idx 1
+    ok = {"stem": "س", "options": ["2/8", "4/8", "1/4"], "answer": "4/8"}   # idx 1
+    misaligned = {"stem": "س", "options": ["4/8", "2/8", "1/4"], "answer": "4/8"}  # idx 0 ≠ 1
+    not_in = {"stem": "س", "options": ["2/8", "1/4"], "answer": "9/9"}
+    assert ar_mcq_structure_ok(en, ok) is True
+    assert ar_mcq_structure_ok(en, misaligned) is False
+    assert ar_mcq_structure_ok(en, not_in) is False
+
+
+def test_fidelity_errors_aggregates_and_is_empty_when_clean():
+    en = {"stem": "1/8 + 3/8 = ?", "options": ["2/8", "4/8"], "answer": "4/8"}
+    clean = {"stem": "١/٨ + ٣/٨ = ؟", "options": ["2/8", "4/8"], "answer": "4/8"}
+    broken = {"stem": "جمع الكسور", "options": ["2/8", "4/8"], "answer": "4/8"}  # stem sans nombres
+    assert ar_fidelity_errors(en, clean) == []
+    assert ar_fidelity_errors(en, broken)  # non vide : stem perd 1/8 et 3/8
+
+
+def test_validate_arabic_gate_rejects_wrong_stem():
+    # le gate G3 aurait empêché les 5 items CRIT-1 de devenir active
+    from src.items.review import InvalidTransition, set_arabic, validate_arabic
+    s = _session()
+    it = _human_reviewed_item(s)
+    set_arabic(s, it, {"stem": "جمع الكسور", "options": ["2/8", "4/8", "1/4"], "answer": "4/8"}, by="l")
+    try:
+        validate_arabic(s, it, linguist="l")
+        assert False, "validate_arabic aurait dû refuser un stem qui perd les nombres"
+    except InvalidTransition as e:
+        assert "énoncé AR" in str(e) or "fidélité" in str(e)
+    assert it.ar_validated is False
+
+
+def test_validate_arabic_gate_accepts_faithful_translation():
+    from src.items.review import set_arabic, validate_arabic
+    from src.models.base import ItemStatus
+    s = _session()
+    it = _human_reviewed_item(s)
+    set_arabic(s, it, dict(AR), by="l")  # AR fidèle défini en tête de fichier
+    validate_arabic(s, it, linguist="l")
+    assert it.ar_validated is True
+    assert it.status == ItemStatus.LINGUIST_VALIDATED
 
 
 if __name__ == "__main__":

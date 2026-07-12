@@ -15,11 +15,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.items.quarantine import active_pool
-from src.models.base import EdgeType, ensure_utc, utcnow
+from src.models.base import (
+    AlignmentType,
+    CurriculumFramework,
+    CurriculumView,
+    EdgeType,
+    MappingConfidence,
+    ensure_utc,
+    utcnow,
+)
 from src.models.competency import Competency, CompetencyPrerequisite
+from src.models.curriculum import CompetencyCurriculumMap, CurriculumStandard
 from src.models.item import Item
-from src.models.measurement import Response, Student, StudentCompetencyAbility
-from src.models.org import Classroom, StudentClassroom
+from src.models.measurement import Response, School, Student, StudentCompetencyAbility
+from src.models.org import Classroom, Organization, StudentClassroom
 from src.restitution.diagnosis import MASTERY_ELO, diagnose, diagnose_all
 from src.restitution.scale import DEFAULT_ANCHORS, restitute
 from src.restitution.tutor import explain_diagnosis
@@ -37,6 +46,137 @@ def _is_mastered(ability_elo: float, n_direct: int) -> bool:
     (Revue 2026-07-07.)
     """
     return n_direct > 0 and ability_elo >= MASTERY_ELO
+
+
+# ---------------------------------------------------------------------------
+# Lot B (B3/B4/B5) — vue curriculaire par tenant.
+# Tables de wording FERMÉES (Cadrage-LotB §3/B4) : le texte par type d'alignement
+# n'est jamais libre — c'est le garde-fou anti-sur-claim (« aligned to », jamais
+# « meets »). Champs ADDITIFS uniquement : la vue ATLAS reste octet pour octet
+# identique à aujourd'hui (zéro régression B3).
+# ---------------------------------------------------------------------------
+
+_ALIGNMENT_WORDING_EN = {
+    AlignmentType.EXACT: "aligned to {code}",
+    AlignmentType.PARTIAL: "covers part of {code}",
+    AlignmentType.BROADER: "one of several skills within {code}",
+    AlignmentType.PREREQ: "building block for {code}",
+    AlignmentType.ENRICH: "beyond {code} expectations",
+}
+_ALIGNMENT_WORDING_AR = {
+    AlignmentType.EXACT: "متوافق مع {code}",
+    AlignmentType.PARTIAL: "يغطي جزءًا من {code}",
+    AlignmentType.BROADER: "إحدى مهارات {code}",
+    AlignmentType.PREREQ: "لبنة أساسية لـ {code}",
+    AlignmentType.ENRICH: "يتجاوز متطلبات {code}",
+}
+# Confiance M → mapping indicatif tant que non fiabilisé (B7). Suffixe par langue
+# (revue 2026-07-12, MAJ-2 : un suffixe EN concaténé au wording AR injectait de
+# l'anglais LTR dans une chaîne RTL — visible sur 100 % des badges MoE, tous en M).
+_INDICATIVE_SUFFIX_EN = " (indicative mapping)"
+_INDICATIVE_SUFFIX_AR = " (تعيين استرشادي)"  # à confirmer avec la linguiste (Lot 2)
+
+# MoE UAE ne publie AUCUN code de standard (ligne rouge B2 : « affirmer un code MoE
+# serait faux »). On n'affiche donc jamais la clé technique NUM_OPS.{band} comme un
+# code, et le wording n'insère pas de {code} — il nomme le domaine (revue 2026-07-12,
+# CRIT-3). Le libellé du standard (« Numbers & Operations — Cycle 1 (G4-G5) ») porte
+# déjà toute l'information affichable.
+_MOE_WORDING_EN = "part of {label}"
+_MOE_WORDING_AR = "ضمن {label}"
+
+# ordre d'affichage quand une compétence mappe plusieurs standards : le plus
+# spécifique d'abord (EXACT), l'enrichissement en dernier
+_ALIGNMENT_SPECIFICITY = {
+    AlignmentType.EXACT: 0, AlignmentType.PARTIAL: 1, AlignmentType.BROADER: 2,
+    AlignmentType.PREREQ: 3, AlignmentType.ENRICH: 4,
+}
+
+# sentinelle « contexte non résolu » — distincte de None (= vue ATLAS résolue),
+# pour que class_digest puisse passer SON contexte à class_gaps (un seul
+# chargement des mappings par appel)
+_UNRESOLVED = object()
+
+
+def curriculum_view_of_school(s: Session, school_id) -> CurriculumView:
+    """Framework d'affichage du tenant propriétaire de l'école (B3).
+
+    ATLAS (vue neutre) si l'école est orpheline d'organisation (état legacy des
+    tests/fixtures) : on ne devine jamais un curriculum."""
+    school = s.get(School, school_id) if school_id is not None else None
+    if school is None or school.organization_id is None:
+        return CurriculumView.ATLAS
+    org = s.get(Organization, school.organization_id)
+    return org.curriculum_view if org is not None else CurriculumView.ATLAS
+
+
+def _standard_payload(m: CompetencyCurriculumMap, std: CurriculumStandard) -> dict:
+    is_moe = std.framework == CurriculumFramework.MOE_UAE
+    if is_moe:
+        # jamais de code affiché ; wording nomme le domaine, pas la clé technique
+        wording_en = _MOE_WORDING_EN.format(label=std.label_en)
+        wording_ar = _MOE_WORDING_AR.format(label=std.label_ar)
+    else:
+        wording_en = _ALIGNMENT_WORDING_EN[m.alignment_type].format(code=std.code)
+        wording_ar = _ALIGNMENT_WORDING_AR[m.alignment_type].format(code=std.code)
+    if m.confidence == MappingConfidence.M:
+        wording_en += _INDICATIVE_SUFFIX_EN
+        wording_ar += _INDICATIVE_SUFFIX_AR
+    return {
+        "framework": std.framework.value,
+        "code": std.code,               # clé technique (identité), jamais garantie affichable
+        "display_code": None if is_moe else std.code,  # ce que l'UI a le droit d'afficher en code
+        "label_en": std.label_en,
+        "label_ar": std.label_ar,
+        "alignment_type": m.alignment_type.value,
+        "wording_en": wording_en,
+        "wording_ar": wording_ar,
+    }
+
+
+def _crosswalk_by_code(s: Session, framework: CurriculumFramework) -> dict:
+    """competency_code -> [payloads standard], du plus spécifique au moins spécifique.
+
+    UN chargement par appel de vue (volumes triviaux : 32 compétences) — les vues
+    l'attachent ensuite en mémoire, jamais de requête par compétence."""
+    rows = s.execute(
+        select(Competency.code, CompetencyCurriculumMap, CurriculumStandard)
+        .join(CompetencyCurriculumMap, CompetencyCurriculumMap.competency_id == Competency.id)
+        .join(CurriculumStandard, CurriculumStandard.id == CompetencyCurriculumMap.standard_id)
+        .where(CurriculumStandard.framework == framework)
+    ).all()
+    grouped: dict = {}
+    for code, m, std in rows:
+        grouped.setdefault(code, []).append((m, std))
+    return {
+        code: [_standard_payload(m, std) for m, std in
+               sorted(pairs, key=lambda p: (_ALIGNMENT_SPECIFICITY[p[0].alignment_type], p[1].code))]
+        for code, pairs in grouped.items()
+    }
+
+
+def _curriculum_context(s: Session, school_id) -> Optional[dict]:
+    """None = vue ATLAS (payloads strictement inchangés) ; sinon crosswalk du framework."""
+    view = curriculum_view_of_school(s, school_id)
+    if view == CurriculumView.ATLAS:
+        return None
+    return _crosswalk_by_code(s, CurriculumFramework(view.value))
+
+
+def _classroom_curriculum(s: Session, classroom_id) -> Optional[dict]:
+    cls = s.get(Classroom, classroom_id)
+    return _curriculum_context(s, cls.school_id) if cls is not None else None
+
+
+def _attach_standard(entry: dict, competency_code: str, crosswalk: Optional[dict]) -> dict:
+    """Champs ADDITIFS `standard` (le plus spécifique) + `standards` (liste complète).
+
+    Jamais présents en vue ATLAS (crosswalk None) — c'est le contrat de non-régression."""
+    if crosswalk is None:
+        return entry
+    stds = crosswalk.get(competency_code, [])
+    entry["standard"] = stds[0] if stds else None
+    entry["standards"] = stds
+    return entry
 
 
 def _code_maps(s: Session):
@@ -68,11 +208,15 @@ def _class_student_ids(s: Session, classroom_id: uuid.UUID) -> set:
     ).scalars())
 
 
-def class_gaps(s: Session, classroom_id: uuid.UUID) -> List[dict]:
+def class_gaps(s: Session, classroom_id: uuid.UUID, *, crosswalk=_UNRESOLVED) -> List[dict]:
     """Lacunes de la classe regroupées par CAUSE RACINE, triées par fréquence (T5.4).
 
     Chaque entrée porte son diagnostic causal — « où concentrer le cours ».
+    B4 : la cause racine est étiquetée avec son code standard si le tenant a une
+    vue curriculaire (`crosswalk` : injectable par class_digest, sinon résolu ici).
     """
+    if crosswalk is _UNRESOLVED:
+        crosswalk = _classroom_curriculum(s, classroom_id)
     code_of, label_of, hard, label_ar_of = _code_maps(s)
     student_ids = _class_student_ids(s, classroom_id)
 
@@ -92,7 +236,7 @@ def class_gaps(s: Session, classroom_id: uuid.UUID) -> List[dict]:
     out = []
     for rc, n in counter.most_common():
         gap_code, is_self = example_gap[rc]
-        out.append({
+        out.append(_attach_standard({
             "root_cause": rc,
             "label": label_of.get(rc, rc),                  # rétro-compat
             "root_cause_label_en": label_of.get(rc, rc),
@@ -102,7 +246,7 @@ def class_gaps(s: Session, classroom_id: uuid.UUID) -> List[dict]:
             "is_self": is_self,
             "student_count": n,
             "diagnosis": example_expl[rc],
-        })
+        }, rc, crosswalk))
     return out
 
 
@@ -116,6 +260,7 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
     """
     now = ensure_utc(now) or utcnow()   # naïf accepté (tests) → réinterprété UTC
     since = now - timedelta(days=days)
+    crosswalk = _classroom_curriculum(s, classroom_id)   # résolu UNE fois pour tout le digest
     code_of, label_of, hard, label_ar_of = _code_maps(s)
     student_ids = _class_student_ids(s, classroom_id)
 
@@ -154,7 +299,7 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
     emerging_gaps = []
     for rc, n in emerging.most_common(5):
         gap_code, is_self = emerging_example[rc]
-        emerging_gaps.append({
+        emerging_gaps.append(_attach_standard({
             "root_cause": rc,
             "root_cause_label_en": label_of.get(rc, rc),
             "root_cause_label_ar": label_ar_of.get(rc, rc),
@@ -162,9 +307,9 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
             "gap_label_ar": label_ar_of.get(gap_code, gap_code),
             "is_self": is_self,
             "student_count": n,
-        })
+        }, rc, crosswalk))
 
-    all_gaps = class_gaps(s, classroom_id)
+    all_gaps = class_gaps(s, classroom_id, crosswalk=crosswalk)
     return {
         "classroom_id": str(classroom_id),
         "window_days": days,
@@ -179,6 +324,7 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
 
 def school_overview(s: Session, school_id: uuid.UUID) -> dict:
     """Agrégat établissement (T5.5) : maîtrise par compétence et par classe. SANS PII élève."""
+    crosswalk = _curriculum_context(s, school_id)   # B4 : colonne « standard » si vue ≠ ATLAS
     code_of, label_of, _, _ = _code_maps(s)
     students = s.execute(
         select(Student).where(Student.school_id == school_id, Student.deleted_at.is_(None))
@@ -211,10 +357,12 @@ def school_overview(s: Session, school_id: uuid.UUID) -> dict:
     for r in rows:
         by_comp.setdefault(r.competency_id, []).append(r.ability_elo)
     competencies = [
-        {"code": code_of.get(cid, str(cid)), "label": label_of.get(code_of.get(cid), ""),
-         "mean_ability": round(mean(v), 1),
-         "mastery_rate": round(sum(1 for x in v if x >= MASTERY_ELO) / len(v), 2),
-         "n_measured": len(v)}
+        _attach_standard(
+            {"code": code_of.get(cid, str(cid)), "label": label_of.get(code_of.get(cid), ""),
+             "mean_ability": round(mean(v), 1),
+             "mastery_rate": round(sum(1 for x in v if x >= MASTERY_ELO) / len(v), 2),
+             "n_measured": len(v)},
+            code_of.get(cid, str(cid)), crosswalk)
         for cid, v in by_comp.items()
     ]
     competencies.sort(key=lambda c: c["mastery_rate"])  # les plus faibles d'abord
@@ -232,6 +380,87 @@ def school_overview(s: Session, school_id: uuid.UUID) -> dict:
 
     return {"school_id": str(school_id), "n_students": len(students),
             "competencies": competencies, "classes": classes}
+
+
+# Une compétence est « maîtrisée par la cohorte » si au moins ce taux d'élèves
+# MESURÉS la maîtrisent (revue 2026-07-12, MAJ-1 : l'ancienne règle appliquait
+# _is_mastered à la MOYENNE de l'école — une classe 50/50 ressortait « couverte »).
+# Seuil explicite et affiché dans le rapport, jamais implicite.
+COHORT_MASTERY_THRESHOLD = 0.8
+
+
+def curriculum_coverage(s: Session, school_id: uuid.UUID) -> Optional[dict]:
+    """Section « Couverture du programme » du rapport école (B5). None en vue ATLAS.
+
+    Par standard S dont les compétences mappées sont {c₁…cₙ} : « k/n compétences
+    alignées sur S maîtrisées ». Une compétence est maîtrisée par la cohorte si
+    ≥ COHORT_MASTERY_THRESHOLD des élèves MESURÉS la maîtrisent (règle par ÉLÈVE —
+    _is_mastered — puis TAUX, pas maîtrise de la moyenne : MAJ-1). Mêmes gardes que
+    school_overview (élèves vivants, mesures directes).
+
+    `covered` (booléen, rapport école UNIQUEMENT) : vrai SEULEMENT si toutes les
+    compétences EXACT de S sont maîtrisées par la cohorte. Un framework SANS codes
+    ni mapping EXACT (MoE UAE : tout est BROADER) n'a pas de notion de « couvert » —
+    `covered` vaut alors None et le rapport n'affiche PAS de verdict (CRIT-3b : une
+    colonne toujours fausse est un bug déguisé en verdict). JAMAIS de « meets {code} »
+    au niveau élève individuel en v1 : le standard-setting appartient au Lot C.
+    Agrégation en lecture (volumes triviaux, 32 compétences).
+    """
+    view = curriculum_view_of_school(s, school_id)
+    if view == CurriculumView.ATLAS:
+        return None
+    framework = CurriculumFramework(view.value)
+
+    # taux de maîtrise PAR ÉLÈVE et par compétence — mêmes filtres que school_overview
+    rows = [r for r in s.execute(
+        select(StudentCompetencyAbility)
+        .join(Student, Student.id == StudentCompetencyAbility.student_id)
+        .where(StudentCompetencyAbility.school_id == school_id,
+               Student.deleted_at.is_(None))
+    ).scalars() if r.n_direct > 0]
+    by_comp: dict = {}
+    for r in rows:
+        by_comp.setdefault(r.competency_id, []).append(r)
+    # compétence maîtrisée par la cohorte = ≥ seuil d'élèves mesurés la maîtrisent
+    comp_mastered = {
+        cid: (sum(1 for r in rr if _is_mastered(r.ability_elo, r.n_direct)) / len(rr))
+             >= COHORT_MASTERY_THRESHOLD
+        for cid, rr in by_comp.items()
+    }
+
+    # UN chargement du crosswalk (standard → mappings), pas de N+1
+    maps = s.execute(
+        select(CompetencyCurriculumMap, CurriculumStandard)
+        .join(CurriculumStandard, CurriculumStandard.id == CompetencyCurriculumMap.standard_id)
+        .where(CurriculumStandard.framework == framework)
+    ).all()
+    by_std: dict = {}
+    for m, std in maps:
+        by_std.setdefault(std.id, (std, []))[1].append(m)
+
+    has_exact = framework != CurriculumFramework.MOE_UAE
+    standards = []
+    for std, ms in by_std.values():
+        mastered = [bool(comp_mastered.get(m.competency_id, False)) for m in ms]
+        exact_mastered = [ok for m, ok in zip(ms, mastered)
+                          if m.alignment_type == AlignmentType.EXACT]
+        standards.append({
+            "code": std.code,
+            "display_code": None if std.framework == CurriculumFramework.MOE_UAE else std.code,
+            "label": std.label_en,
+            "label_ar": std.label_ar,
+            "mastered_count": sum(mastered),
+            "total": len(ms),
+            # None (pas False) quand la notion n'a pas de sens → l'UI n'affiche rien
+            "covered": (bool(exact_mastered) and all(exact_mastered)) if has_exact else None,
+        })
+    standards.sort(key=lambda x: x["code"])
+    return {
+        "framework": framework.value,
+        "shows_covered": has_exact,
+        "coverage_threshold": COHORT_MASTERY_THRESHOLD,
+        "standards": standards,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +504,9 @@ def list_students(s: Session, classroom_id: uuid.UUID) -> List[dict]:
 
 def student_profile(s: Session, student_id: uuid.UUID) -> dict:
     """Fiche élève (écran héros) : profil de maîtrise + diagnostic causal + restitution."""
+    st = s.get(Student, student_id)
+    # B4 : badge standard par compétence si le tenant a une vue curriculaire
+    crosswalk = _curriculum_context(s, st.school_id) if st is not None else None
     code_of, label_of, hard_codes, label_ar_of = _code_maps(s)
     meta = _competency_meta(s)
     rows = s.execute(
@@ -290,14 +522,14 @@ def student_profile(s: Session, student_id: uuid.UUID) -> dict:
         if code is None:
             continue
         m = meta.get(code, {})
-        competencies.append({
+        competencies.append(_attach_standard({
             "code": code, "label_en": m.get("label_en", code), "label_ar": m.get("label_ar", code),
             "grade": m.get("grade"), "strand": m.get("strand", code),
             "ability_elo": round(r.ability_elo, 1), "confidence": round(r.confidence, 3),
             "n_direct": r.n_direct, "measured": r.n_direct > 0,
             # propagation ≠ mesure : jamais « maîtrisé » sans réponse directe
             "mastered": _is_mastered(r.ability_elo, r.n_direct),
-        })
+        }, code, crosswalk))
     competencies.sort(key=lambda c: (c["grade"] or 0, c["ability_elo"]))
 
     # Diagnostics causaux sur les lacunes mesurées
@@ -318,7 +550,6 @@ def student_profile(s: Session, student_id: uuid.UUID) -> dict:
     diagnoses.sort(key=lambda d: (d["is_self"], len(d["chain"])), reverse=True)
 
     restitution = _overall_restitution(rows)
-    st = s.get(Student, student_id)
     return {
         "student_id": str(student_id),
         "external_ref": (st.external_ref if st and st.external_ref else "—"),

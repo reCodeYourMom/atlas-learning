@@ -16,7 +16,7 @@ from src.engine.selection import CompetencyState, ItemRef, select_next
 from src.engine.service import ELO_START, on_response
 from src.engine.stopping import StopConfig, should_stop
 from src.items.quarantine import active_pool
-from src.models.base import EdgeType, ensure_utc, utcnow
+from src.models.base import EdgeType, ResponseLanguage, ensure_utc, utcnow
 from src.models.competency import CompetencyPrerequisite
 from src.models.item import Item
 from src.models.measurement import Response, StudentCompetencyAbility
@@ -58,16 +58,23 @@ def grade_answer(item: Item, selected: str, lang: str = "en") -> bool:
 
 def start_session(
     s: Session, *, student_id: uuid.UUID, school_id: uuid.UUID,
-    target_competency_ids: Optional[List] = None,
+    target_competency_ids: Optional[List] = None, locale: str = "en",
 ) -> AssessmentSession:
+    # Locale validée ICI aussi (fonction appelable hors HTTP) : une valeur hors enum
+    # ne serait rejetée que par Postgres — trop tard, et jamais sur SQLite (dev/CI).
+    try:
+        loc = ResponseLanguage(locale)
+    except ValueError:
+        raise ValueError(f"locale invalide : {locale!r} (attendu 'en' ou 'ar')")
     sess = AssessmentSession(
         student_id=student_id, school_id=school_id,
         target_competency_ids=[str(c) for c in target_competency_ids] if target_competency_ids else None,
+        locale=loc,
     )
     s.add(sess)
     s.flush()  # pour disposer de sess.id
     log_action(s, action="session.create", school_id=school_id, resource_type="session",
-               resource_id=sess.id, details={"student_id": str(student_id)})
+               resource_id=sess.id, details={"student_id": str(student_id), "locale": loc.value})
     s.commit()
     return sess
 
@@ -176,6 +183,7 @@ def submit_response(
             s, student_id=session.student_id, item_id=item_id, is_correct=is_correct,
             school_id=session.school_id, session_id=session.id,
             response_time_ms=response_time_ms, response_id=response_id,
+            language=session.locale,   # C-0 : la Response porte la langue de SA session
         )
 
     try:

@@ -13,7 +13,7 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, TimestampMixin, utcnow, uuid_pk
+from .base import Base, ResponseLanguage, TimestampMixin, native_enum, utcnow, uuid_pk
 
 
 class School(Base):
@@ -78,6 +78,12 @@ class Response(Base):
     is_correct: Mapped[bool] = mapped_column(Boolean)
     response_time_ms: Mapped[Optional[int]] = mapped_column(Integer, default=None)
     session_id: Mapped[Optional[uuid.UUID]] = mapped_column(default=None)  # FK session = Epic 4
+    # Langue SERVIE (C-0) : dérivée de la locale de session, 'en' hors session. Le
+    # server_default 'en' couvre les lignes pré-migration (état de fait : UI anglaise).
+    language: Mapped[ResponseLanguage] = mapped_column(
+        native_enum(ResponseLanguage, "response_language"),
+        default=ResponseLanguage.EN, server_default="en",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

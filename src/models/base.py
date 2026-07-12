@@ -110,6 +110,16 @@ class AnswerFormat(str, enum.Enum):
     SHORT = "SHORT"
 
 
+class ResponseLanguage(str, enum.Enum):
+    """Langue SERVIE à l'élève (C-0, Lot C) — pas la langue de l'item (bilingue en base).
+
+    Enregistrée sur chaque Response (et comme locale de session) : sans elle, aucune
+    analyse DIF EN/AR n'est possible sur un journal append-only (pas de backfill).
+    """
+    EN = "en"
+    AR = "ar"
+
+
 class Role(str, enum.Enum):
     SUPER_ADMIN = "super_admin"   # Atlas/éditeur — accès illimité
     IT_ADMIN = "it_admin"         # SSO, sécurité globale (gate d'achat)
@@ -118,6 +128,38 @@ class Role(str, enum.Enum):
     PARENT = "parent"             # lecture seule sur son enfant
     STUDENT = "student"           # ses propres activités
     LINGUIST = "linguist"         # staff Atlas GLOBAL : relit/valide l'arabe de la banque (pas tenant-scopé)
+
+
+# --- Enums curriculum (Lot B, B2/B3 — DataModel §7 amendé D-B4) ---
+
+class CurriculumFramework(str, enum.Enum):
+    CCSS_M = "CCSS_M"     # Common Core State Standards - Mathematics
+    UK_NC = "UK_NC"       # UK National Curriculum
+    MOE_UAE = "MOE_UAE"   # MoE UAE — pas de codes officiels : clé composée domaine+band
+
+
+class AlignmentType(str, enum.Enum):
+    """Type d'alignement compétence Atlas ↔ standard (remplace l'alignment_strength
+    scalaire du §7 : le crosswalk réel porte un type + une confiance, D-B4)."""
+    EXACT = "EXACT"
+    PARTIAL = "PARTIAL"
+    BROADER = "BROADER"
+    PREREQ = "PREREQ"
+    ENRICH = "ENRICH"
+
+
+class MappingConfidence(str, enum.Enum):
+    H = "H"   # haute
+    M = "M"   # moyenne
+
+
+class CurriculumView(str, enum.Enum):
+    """Framework d'affichage par tenant (B3). ATLAS = vue neutre actuelle (aucune
+    étiquette de standard) — comportement identique à aujourd'hui, zéro régression."""
+    ATLAS = "ATLAS"
+    CCSS_M = "CCSS_M"
+    UK_NC = "UK_NC"
+    MOE_UAE = "MOE_UAE"
 
 
 # Helpers de colonnes communes (mixin léger, pas d'abstraction magique)

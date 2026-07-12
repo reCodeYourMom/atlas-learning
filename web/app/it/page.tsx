@@ -6,6 +6,7 @@ import { useLang } from "@/components/LanguageProvider";
 import { Button, Card, Chip, Loading, SectionTitle } from "@/components/ui";
 import { EthicsStance } from "@/components/EthicsStance";
 import { api, type AuditEntry, type Integration, type RosterRun, type SetupState } from "@/lib/api";
+import type { CurriculumSettings } from "@/lib/types";
 import type { DictKey } from "@/lib/i18n";
 
 const STEP_LABEL: Record<string, DictKey> = {
@@ -43,24 +44,49 @@ const STATUS_KEY: Record<string, DictKey> = {
   blocked: "it.status.blocked",
 };
 
+// Libellés des frameworks (B3) — les valeurs viennent de l'enum serveur CurriculumView.
+const FRAMEWORK_KEY: Record<string, DictKey> = {
+  ATLAS: "curriculum.fw.atlas",
+  CCSS_M: "curriculum.fw.ccssm",
+  UK_NC: "curriculum.fw.uknc",
+  MOE_UAE: "curriculum.fw.moe",
+};
+
 function ITView() {
   const { t, lang } = useLang();
   const [data, setData] = useState<Integration | null>(null);
   const [runs, setRuns] = useState<RosterRun[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [setup, setSetup] = useState<SetupState | null>(null);
+  const [curriculum, setCurriculum] = useState<CurriculumSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [curError, setCurError] = useState<string | null>(null);
 
   async function refresh() {
-    const [integ, history, log, st] = await Promise.all([
+    const [integ, history, log, st, cur] = await Promise.all([
       api.adminIntegration(), api.rosteringRuns(), api.adminAudit(), api.adminSetup(),
+      api.adminCurriculum(),
     ]);
     setData(integ);
     setRuns(history.runs);
     setAudit(log.entries);
     setSetup(st);
+    setCurriculum(cur);
+  }
+
+  async function setCurriculumView(view: string) {
+    setBusy(true);
+    setCurError(null);
+    try {
+      await api.adminSetCurriculum(view);
+      setCurriculum(await api.adminCurriculum());
+    } catch {
+      setCurError(t("curriculum.error"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function inviteParents() {
@@ -211,6 +237,37 @@ function ITView() {
           </Button>
         </div>
       </Card>
+
+      {/* Vue curriculaire (B3) : framework d'affichage du tenant — un seul actif en v1 (D-B3). */}
+      {curriculum && (
+        <Card className="p-5">
+          <div className="mb-1 flex items-center justify-between gap-4">
+            <SectionTitle title={t("curriculum.title")} />
+            <Chip className="shrink-0 bg-brand-50 text-brand-700 ring-brand-200">
+              {t("curriculum.current")} ·{" "}
+              {t(FRAMEWORK_KEY[curriculum.curriculum_view] ?? "curriculum.fw.atlas")}
+            </Chip>
+          </div>
+          <p className="mb-3 text-xs text-sand-500">{t("curriculum.hint")}</p>
+          <label className="block text-xs text-sand-400" htmlFor="curriculum-view">
+            {t("curriculum.select")}
+          </label>
+          <select
+            id="curriculum-view"
+            value={curriculum.curriculum_view}
+            onChange={(e) => setCurriculumView(e.target.value)}
+            disabled={busy}
+            className="mt-1 w-full max-w-xs rounded-lg border border-sand-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400 disabled:opacity-50 sm:w-auto"
+          >
+            {curriculum.available_frameworks.map((fw) => (
+              <option key={fw} value={fw}>
+                {t(FRAMEWORK_KEY[fw] ?? "curriculum.fw.atlas")}
+              </option>
+            ))}
+          </select>
+          {curError && <p className="mt-3 text-sm text-danger">{curError}</p>}
+        </Card>
+      )}
 
       {/* Historique des synchronisations */}
       <Card className="p-5">

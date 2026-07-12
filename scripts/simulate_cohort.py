@@ -5,9 +5,14 @@ que le moteur retrouve les niveaux, calibre les items, et que la propagation aid
 les compétences peu testées. Script de réglage (pas du code de prod).
 
 Déterministe (seed fixe). Aucun DB, aucun LLM : on rejoue les fonctions pures.
+
+Errata E10 : `--referentiel` (répétable) remplace le chemin hardcodé — plusieurs
+référentiels sont fusionnés (nodes + edges) pour tester les ponts inter-domaines
+(gate G5, ex. fractions + décimaux). Défaut = fractions seules, sortie inchangée.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import random
 import sys
@@ -23,7 +28,30 @@ SEED = 42
 N_STUDENTS = 40
 N_RESP = 30          # réponses directes / élève sur sa compétence primaire
 ITEMS_PER_COMP = 6
-DATA = json.loads((Path(__file__).resolve().parents[1] / "data" / "referentiel_fractions.json").read_text("utf-8"))
+DEFAULT_REFERENTIEL = Path(__file__).resolve().parents[1] / "data" / "referentiel_fractions.json"
+
+
+def load_referentiels(paths) -> dict:
+    """Fusionne plusieurs référentiels {nodes, edges} en un graphe unique (E10).
+
+    Concaténation dans l'ordre des fichiers (le tirage RNG dépend de l'ordre des
+    nœuds : un seul fichier = comportement historique à l'identique). Les ponts
+    inter-domaines (arêtes dont source et cible viennent de fichiers différents)
+    se résolvent sur le graphe fusionné — d'où la vérification APRÈS fusion.
+    """
+    nodes, edges, seen = [], [], set()
+    for p in paths:
+        data = json.loads(Path(p).read_text("utf-8"))
+        for n in data["nodes"]:
+            if n["code"] in seen:
+                sys.exit(f"Code dupliqué entre référentiels : {n['code']}")
+            seen.add(n["code"])
+            nodes.append(n)
+        edges.extend(data["edges"])
+    unresolved = sorted({c for s, t, *_ in edges for c in (s, t) if c not in seen})
+    if unresolved:
+        sys.exit(f"Ponts non résolus (nœuds absents des référentiels fournis) : {unresolved}")
+    return {"nodes": nodes, "edges": edges}
 
 
 def pearson(xs, ys) -> float:
@@ -35,11 +63,11 @@ def pearson(xs, ys) -> float:
     return cov / (vx * vy) if vx and vy else 0.0
 
 
-def build_world(rng):
-    codes = [n["code"] for n in DATA["nodes"]]
-    prior = {n["code"]: float(n["difficulty_prior"]) for n in DATA["nodes"]}
+def build_world(rng, data):
+    codes = [n["code"] for n in data["nodes"]]
+    prior = {n["code"]: float(n["difficulty_prior"]) for n in data["nodes"]}
     adj = {}
-    for s_code, t_code, etype, w in DATA["edges"]:
+    for s_code, t_code, etype, w in data["edges"]:
         adj.setdefault(t_code, []).append((s_code, float(w), etype))  # voisin = prérequis
         adj.setdefault(s_code, []).append((t_code, float(w), etype))  # et dépendant
     # items globaux : difficulté vraie autour du prior de la compétence
@@ -95,8 +123,15 @@ def run_engine(log, items, prior, *, propagate_on):
 
 def main() -> None:
     global _ADJ
+    p = argparse.ArgumentParser(description="Simulation cohorte synthétique (T3.5, gate G5).")
+    p.add_argument("--referentiel", type=Path, action="append", default=None,
+                   help="JSON référentiel {nodes, edges} — répétable pour fusionner "
+                        "plusieurs domaines (défaut : data/referentiel_fractions.json).")
+    args = p.parse_args()
+    data = load_referentiels(args.referentiel or [DEFAULT_REFERENTIEL])
+
     rng = random.Random(SEED)
-    codes, prior, adj, items, students, core = build_world(rng)
+    codes, prior, adj, items, students, core = build_world(rng, data)
     _ADJ = adj
     log, primary_of = make_event_log(rng, items, students, core)
 
@@ -110,8 +145,12 @@ def main() -> None:
     med = median(errs)
     checks.append((f"AC1 médiane |est-vrai| = {med:.0f} Elo (cible <150)", med < 150))
 
-    # AC2 : difficulty_elo des items corrèle avec la difficulté vraie (>0.8) sur items calibrés
-    calibrated = [iid for iid in items if item_n[iid] >= 10]
+    # AC2 : difficulty_elo des items corrèle avec la difficulté vraie (>0.8) sur items
+    # CALIBRÉS = ≥ 30 réponses (burn-in 20 + ≥ 10 mises à jour réelles). Sous 30, la
+    # difficulté est encore gelée au prior ou à peine ajustée : on mesurerait la qualité
+    # des priors, pas la calibration (revue 2026-07-12 — le seuil 10 faisait échouer
+    # l'AC à 0.74 en incluant des items jamais calibrés).
+    calibrated = [iid for iid in items if item_n[iid] >= 30]
     corr = pearson([item_diff[i] for i in calibrated], [items[i][1] for i in calibrated])
     checks.append((f"AC2 corrélation difficulté élo/vraie = {corr:.2f} (cible >0.8, {len(calibrated)} items)", corr > 0.8))
 

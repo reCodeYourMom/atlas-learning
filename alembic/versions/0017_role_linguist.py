@@ -41,6 +41,15 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         # SQLite : `role` est un VARCHAR sans contrainte (native_enum sans CHECK) → rien à faire.
         return
+    from alembic import context
+    if context.is_offline_mode():
+        # --sql (revue 2026-07-12) : pas de connexion pour interroger pg_enum →
+        # SQL statique idempotent. `IF NOT EXISTS` exige PG ≥ 12 : acceptable en
+        # offline (génération de script prod, PG récent) ; le chemin online reste
+        # compatible < 12 via le garde d'existence ci-dessous.
+        op.execute("COMMIT")
+        op.execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'linguist'")
+        return
     # La valeur existe déjà ? (upgrade rejoué / base déjà à niveau) → on ne fait rien.
     exists = bind.exec_driver_sql(
         "SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid "

@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy import JSON, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, utcnow, uuid_pk
+from .base import Base, ResponseLanguage, native_enum, utcnow, uuid_pk
 
 
 class AssessmentSession(Base):
@@ -22,6 +22,12 @@ class AssessmentSession(Base):
         ForeignKey("student.id", ondelete="CASCADE"), index=True
     )
     status: Mapped[str] = mapped_column(String, default="active")  # active | completed
+    # Langue de l'UI pendant la session (C-0) : chaque Response créée dans la session
+    # en hérite — traçabilité de la langue servie, prérequis des analyses DIF EN/AR.
+    locale: Mapped[ResponseLanguage] = mapped_column(
+        native_enum(ResponseLanguage, "response_language"),
+        default=ResponseLanguage.EN, server_default="en",
+    )
     target_competency_ids: Mapped[Optional[list]] = mapped_column(JSON, default=None)
     stop_reason: Mapped[Optional[str]] = mapped_column(String, default=None)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

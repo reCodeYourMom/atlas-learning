@@ -5,6 +5,7 @@ ne crée que quelques tables : tout le metadata est peuplé d'un coup.
 """
 from . import base  # noqa: F401
 from . import competency  # noqa: F401
+from . import curriculum  # noqa: F401
 from . import item  # noqa: F401
 from . import measurement  # noqa: F401
 from . import org  # noqa: F401

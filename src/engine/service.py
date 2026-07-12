@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.engine.elo import Neighbor, confidence, propagate, update_elo
-from src.models.base import utcnow
+from src.models.base import ResponseLanguage, utcnow
 from src.models.competency import CompetencyPrerequisite
 from src.models.item import Item
 from src.models.measurement import Response, StudentCompetencyAbility
@@ -42,6 +42,7 @@ def on_response(
     response_time_ms: Optional[int] = None,
     session_id: Optional[uuid.UUID] = None,
     response_id: Optional[uuid.UUID] = None,
+    language: ResponseLanguage = ResponseLanguage.EN,
 ) -> Response:
     """Applique une réponse de bout en bout (transaction atomique). Retourne la Response.
 
@@ -133,11 +134,14 @@ def on_response(
             nb_row.ability_elo = p.new_ability      # inféré : on ne touche PAS n_direct ni confidence
 
         # --- response append-only ---
+        # `language` (C-0) : locale de la session appelante, 'en' hors session — coercition
+        # par VALEUR ('en'/'ar') pour les appels directs (scripts, seeds) passant un str.
         resp = Response(
             id=response_id or uuid.uuid4(),
             school_id=school_id, student_id=student_id, item_id=item_id,
             competency_id=comp_id, is_correct=is_correct,
             response_time_ms=response_time_ms, session_id=session_id,
+            language=ResponseLanguage(language),
             created_at=utcnow(),
         )
         resp.replayed = False   # première application (cf. docstring : signal de rejeu)

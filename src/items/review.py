@@ -12,6 +12,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.items.arabic import ar_fidelity_errors
 from src.items.generation import GeneratedItem
 from src.models.base import ItemStatus, utcnow
 from src.models.item import Item, ItemContent
@@ -165,11 +166,19 @@ def set_arabic(session: Session, item: Item, content_ar: dict, *, by: str) -> It
 def validate_arabic(session: Session, item: Item, *, linguist: str) -> Item:
     """Le linguiste valide l'AR : ar_validated=True puis human_reviewed → linguist_validated.
 
-    Exige un `content_ar` présent et conforme.
+    Exige un `content_ar` présent, conforme, ET fidèle à l'EN (gate G3, revue 2026-07-12,
+    CRIT-1) : nombres du stem préservés, structure MCQ cohérente, pas de token latin ni
+    de glyphe parasite. C'est le garde-fou qui aurait empêché les 5 items au stem faux
+    de devenir `active`.
     """
     if not item.content_ar:
         raise InvalidTransition("Pas de content_ar à valider.")
     ItemContent.model_validate(item.content_ar)
+    errors = ar_fidelity_errors(item.content_en, item.content_ar)
+    if errors:
+        raise InvalidTransition(
+            "Validation AR refusée — défauts de fidélité EN↔AR : " + " ; ".join(errors)
+        )
     item.ar_validated = True
     _stamp_reviewer(item, linguist, ar_validated_by=linguist)
     session.commit()

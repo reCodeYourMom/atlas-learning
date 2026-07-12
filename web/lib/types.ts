@@ -9,6 +9,21 @@ export interface Me {
   own_student_id: string | null;
 }
 
+// B4 : payload `standard` ADDITIF — présent UNIQUEMENT si la vue curriculaire du
+// tenant ≠ ATLAS (contrat de non-régression : jamais de champ en vue neutre).
+export interface StandardRef {
+  framework: string;
+  code: string;
+  // display_code = code affichable (CCSS/UK) ou null (MoE UAE n'a pas de code officiel :
+  // on affiche le label, jamais la clé technique NUM_OPS.{band}).
+  display_code: string | null;
+  label_en: string;
+  label_ar: string;
+  alignment_type: string;
+  wording_en: string;
+  wording_ar: string;
+}
+
 export interface ClassGap {
   root_cause: string;
   label: string;
@@ -19,6 +34,8 @@ export interface ClassGap {
   is_self: boolean;
   student_count: number;
   diagnosis: string;
+  standard?: StandardRef | null;
+  standards?: StandardRef[];
 }
 
 export interface StudentRow {
@@ -50,6 +67,8 @@ export interface CompetencyMastery {
   n_direct: number;
   measured: boolean;
   mastered: boolean;
+  standard?: StandardRef | null;
+  standards?: StandardRef[];
 }
 
 export interface Diagnosis {
@@ -117,6 +136,8 @@ export interface EmergingGap {
   gap_label_ar: string;
   is_self: boolean;
   student_count: number;
+  standard?: StandardRef | null;
+  standards?: StandardRef[];
 }
 
 export interface ClassDigest {
@@ -230,6 +251,33 @@ export interface ProofSurfaces {
   n_students_measured: number;
   n_mastered_skills: number;
   n_measured_skills: number;
+  // B5 (D-B5) : section ADDITIVE du rapport — absente en vue ATLAS.
+  curriculum_coverage?: CurriculumCoverage;
+}
+
+// « k/n compétences alignées sur S maîtrisées » ; covered = toutes les EXACT
+// maîtrisées (rapport école UNIQUEMENT, jamais au niveau élève — règle B5).
+export interface CurriculumCoverage {
+  framework: string;
+  // MoE UAE : pas de notion de « couvert » (aucun mapping EXACT) → shows_covered=false,
+  // le rapport n'affiche pas de colonne verdict (une colonne toujours fausse = bug déguisé).
+  shows_covered: boolean;
+  coverage_threshold: number;
+  standards: {
+    code: string;
+    display_code: string | null;
+    label: string;
+    label_ar: string;
+    mastered_count: number;
+    total: number;
+    covered: boolean | null;
+  }[];
+}
+
+export interface CurriculumSettings {
+  organization: { id: string; name: string };
+  curriculum_view: string;
+  available_frameworks: string[];
 }
 
 export interface RemediationPreview {

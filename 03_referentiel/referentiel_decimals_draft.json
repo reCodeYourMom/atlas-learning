@@ -1,0 +1,230 @@
+{
+  "nodes": [
+    {
+      "code": "MATH.G4.NBT.PLACE_VALUE_TENTHS",
+      "label_en": "Identify the tenths place in a decimal",
+      "label_ar": "تحديد منزلة الأعشار في العدد العشري",
+      "grade": 4,
+      "difficulty_prior": 1520,
+      "cognitive_level": "RECALL",
+      "item_contexts": [
+        "identify digit place",
+        "tenths as 1/10",
+        "expanded form",
+        "money model (dirhams/fils)"
+      ]
+    },
+    {
+      "code": "MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS",
+      "label_en": "Identify the hundredths place in a decimal",
+      "label_ar": "تحديد منزلة أجزاء المئة في العدد العشري",
+      "grade": 4,
+      "difficulty_prior": 1580,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "identify digit place",
+        "hundredths as 1/100",
+        "expanded form",
+        "zero as placeholder"
+      ]
+    },
+    {
+      "code": "MATH.G4.NBT.READ_WRITE_DECIMAL",
+      "label_en": "Read and write decimal numbers",
+      "label_ar": "قراءة الأعداد العشرية وكتابتها",
+      "grade": 4,
+      "difficulty_prior": 1600,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "words to numeral",
+        "numeral to words",
+        "trailing zero (0.5 vs 0.50)",
+        "money notation"
+      ]
+    },
+    {
+      "code": "MATH.G4.NBT.DECIMAL_AS_FRACTION",
+      "label_en": "Convert between decimals and fractions",
+      "label_ar": "التحويل بين الأعداد العشرية والكسور",
+      "grade": 4,
+      "difficulty_prior": 1660,
+      "cognitive_level": "REASON",
+      "item_contexts": [
+        "tenths",
+        "hundredths",
+        "simplifiable (0.5 = 1/2)",
+        "greater than one (1.25)"
+      ]
+    },
+    {
+      "code": "MATH.G4.NBT.DECIMAL_NUMBER_LINE",
+      "label_en": "Place a decimal on a number line",
+      "label_ar": "تمثيل عدد عشري على خط الأعداد",
+      "grade": 4,
+      "difficulty_prior": 1640,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "tenths line",
+        "hundredths zoom",
+        "between two marks",
+        "estimate position"
+      ]
+    },
+    {
+      "code": "MATH.G4.NBT.COMPARE_DECIMALS",
+      "label_en": "Compare and order decimal numbers",
+      "label_ar": "مقارنة الأعداد العشرية وترتيبها",
+      "grade": 4,
+      "difficulty_prior": 1700,
+      "cognitive_level": "REASON",
+      "item_contexts": [
+        "same number of places",
+        "different number of places (longer-is-larger trap)",
+        "trailing zero trap",
+        "ordering 3+ numbers"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.PLACE_VALUE_THOUSANDTHS",
+      "label_en": "Identify the thousandths place and relate adjacent places",
+      "label_ar": "تحديد منزلة أجزاء الألف والعلاقة بين المنازل المتجاورة",
+      "grade": 5,
+      "difficulty_prior": 1820,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "identify digit place",
+        "adjacent places (x10 relation)",
+        "expanded form",
+        "zero as placeholder"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.ADD_DECIMALS",
+      "label_en": "Add decimal numbers",
+      "label_ar": "جمع الأعداد العشرية",
+      "grade": 5,
+      "difficulty_prior": 1840,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "same number of places",
+        "different number of places (alignment)",
+        "carrying",
+        "crossing a whole",
+        "money"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.ROUND_DECIMAL",
+      "label_en": "Round a decimal number",
+      "label_ar": "تقريب عدد عشري",
+      "grade": 5,
+      "difficulty_prior": 1860,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "to nearest whole",
+        "to tenths",
+        "to hundredths",
+        "digit 5 at boundary"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.SUB_DECIMALS",
+      "label_en": "Subtract decimal numbers",
+      "label_ar": "طرح الأعداد العشرية",
+      "grade": 5,
+      "difficulty_prior": 1880,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "same number of places",
+        "different number of places (alignment)",
+        "borrowing",
+        "from a whole (3 - 0.45)",
+        "money change"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.MULT_DIV_POW10",
+      "label_en": "Multiply and divide a decimal by powers of ten",
+      "label_ar": "ضرب عدد عشري وقسمته على قوى العدد عشرة",
+      "grade": 5,
+      "difficulty_prior": 1900,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "x10 x100 x1000",
+        "/10 /100 /1000",
+        "shift direction reasoning",
+        "unit conversion"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.MULT_DECIMAL_WHOLE",
+      "label_en": "Multiply a decimal by a whole number",
+      "label_ar": "ضرب عدد عشري في عدد صحيح",
+      "grade": 5,
+      "difficulty_prior": 1920,
+      "cognitive_level": "APPLY",
+      "item_contexts": [
+        "single-digit whole",
+        "two-digit whole",
+        "point placement",
+        "estimation check"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.DIV_DECIMAL_WHOLE",
+      "label_en": "Divide a decimal by a whole number",
+      "label_ar": "قسمة عدد عشري على عدد صحيح",
+      "grade": 5,
+      "difficulty_prior": 1950,
+      "cognitive_level": "REASON",
+      "item_contexts": [
+        "exact quotient",
+        "quotient needs added zero",
+        "point placement",
+        "sharing model"
+      ]
+    },
+    {
+      "code": "MATH.G5.NBT.MULT_DECIMAL_DECIMAL",
+      "label_en": "Multiply a decimal by a decimal",
+      "label_ar": "ضرب عدد عشري في عدد عشري",
+      "grade": 5,
+      "difficulty_prior": 1960,
+      "cognitive_level": "REASON",
+      "item_contexts": [
+        "tenths x tenths",
+        "counting decimal places",
+        "product smaller than factors",
+        "estimation check"
+      ]
+    }
+  ],
+  "edges": [
+    ["MATH.G4.NBT.PLACE_VALUE_TENTHS", "MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "HARD", 0.85],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G5.NBT.PLACE_VALUE_THOUSANDTHS", "HARD", 0.85],
+    ["MATH.G4.NBT.PLACE_VALUE_TENTHS", "MATH.G4.NBT.READ_WRITE_DECIMAL", "HARD", 0.8],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G4.NBT.READ_WRITE_DECIMAL", "HARD", 0.75],
+    ["MATH.G4.NBT.READ_WRITE_DECIMAL", "MATH.G4.NBT.DECIMAL_NUMBER_LINE", "HARD", 0.75],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G4.NBT.DECIMAL_AS_FRACTION", "HARD", 0.78],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G4.NBT.COMPARE_DECIMALS", "HARD", 0.82],
+    ["MATH.G4.NBT.DECIMAL_NUMBER_LINE", "MATH.G4.NBT.COMPARE_DECIMALS", "SOFT", 0.6],
+    ["MATH.G4.NBT.DECIMAL_AS_FRACTION", "MATH.G4.NBT.COMPARE_DECIMALS", "SOFT", 0.55],
+    ["MATH.G4.NBT.COMPARE_DECIMALS", "MATH.G5.NBT.ROUND_DECIMAL", "HARD", 0.75],
+    ["MATH.G5.NBT.PLACE_VALUE_THOUSANDTHS", "MATH.G5.NBT.ROUND_DECIMAL", "SOFT", 0.55],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G5.NBT.ADD_DECIMALS", "HARD", 0.8],
+    ["MATH.G4.NBT.READ_WRITE_DECIMAL", "MATH.G5.NBT.ADD_DECIMALS", "HARD", 0.72],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G5.NBT.SUB_DECIMALS", "HARD", 0.8],
+    ["MATH.G5.NBT.ADD_DECIMALS", "MATH.G5.NBT.SUB_DECIMALS", "SOFT", 0.65],
+    ["MATH.G5.NBT.PLACE_VALUE_THOUSANDTHS", "MATH.G5.NBT.MULT_DIV_POW10", "HARD", 0.78],
+    ["MATH.G5.NBT.MULT_DIV_POW10", "MATH.G5.NBT.MULT_DECIMAL_WHOLE", "SOFT", 0.6],
+    ["MATH.G5.NBT.MULT_DECIMAL_WHOLE", "MATH.G5.NBT.MULT_DECIMAL_DECIMAL", "HARD", 0.8],
+    ["MATH.G5.NBT.MULT_DIV_POW10", "MATH.G5.NBT.MULT_DECIMAL_DECIMAL", "SOFT", 0.62],
+    ["MATH.G4.NBT.PLACE_VALUE_HUNDREDTHS", "MATH.G5.NBT.DIV_DECIMAL_WHOLE", "HARD", 0.72],
+    ["MATH.G5.NBT.MULT_DECIMAL_WHOLE", "MATH.G5.NBT.DIV_DECIMAL_WHOLE", "SOFT", 0.6],
+    ["MATH.G3.NF.FRACTION_AS_PART", "MATH.G4.NBT.PLACE_VALUE_TENTHS", "HARD", 0.75],
+    ["MATH.G3.NF.FRACTION_AS_PART", "MATH.G4.NBT.DECIMAL_AS_FRACTION", "HARD", 0.8],
+    ["MATH.G4.NF.EQUIVALENCE_COMPUTE", "MATH.G4.NBT.DECIMAL_AS_FRACTION", "HARD", 0.72],
+    ["MATH.G3.NF.NUMBER_LINE_PLACE", "MATH.G4.NBT.DECIMAL_NUMBER_LINE", "SOFT", 0.6],
+    ["MATH.G3.NF.COMPARE_SAME_DENOM", "MATH.G4.NBT.COMPARE_DECIMALS", "SOFT", 0.55]
+  ]
+}

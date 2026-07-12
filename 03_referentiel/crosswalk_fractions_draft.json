@@ -1,0 +1,1153 @@
+{
+  "version": "0.2-reconciled",
+  "status": "RECONCILED — B-0 (2026-07-11) : types d'alignement fixés par framework, cognitifs MoE alignés sur l'enum du référentiel, synthèse recalculée ; en attente de confirmation expert (reconciliation.expert_confirmation_pending).",
+  "source": "Crosswalk-Curriculum-Fractions.md v1 (2026-06-23)",
+  "generated": "2026-07-11",
+  "frameworks": {
+    "CCSS_M": {
+      "name": "Common Core State Standards for Mathematics",
+      "publisher": "NGA Center / CCSSO",
+      "edition": "2010",
+      "grain": "coded standards (e.g. 4.NF.A.1)",
+      "stability": "stable, non modifié depuis 2010"
+    },
+    "UK_NC": {
+      "name": "Mathematics programmes of study: key stages 1 and 2 — National curriculum in England",
+      "publisher": "DfE",
+      "edition": "2013 (DFE-00180-2013)",
+      "grain": "year-group programmes of study (Y1–Y6)",
+      "stability": "stable depuis 2013"
+    },
+    "MOE_UAE": {
+      "name": "UAE National Curriculum — Mathematics",
+      "publisher": "Ministry of Education (moe.gov.ae)",
+      "edition": "courante — pas de standards codés publiés",
+      "grain": "domaine de contenu + grade-band (Cycle 1 = KG–G5) + niveau cognitif TIMSS (Knowing/Applying/Reasoning)",
+      "stability": "à ré-auditer si publication d'outcomes par grade"
+    }
+  },
+  "alignment_types": {
+    "EXACT": "La compétence Atlas correspond directement à un standard officiel (même geste cognitif, même attente).",
+    "PARTIAL": "La compétence Atlas couvre une partie d'un standard plus large.",
+    "BROADER": "Un seul standard officiel regroupe plusieurs compétences Atlas (Atlas plus fin).",
+    "PREREQ": "Grain plus fin / prérequis cognitif non nommé explicitement par le standard.",
+    "ENRICH": "Atlas place la compétence différemment du framework (avance de grade, ou exigence absente du standard)."
+  },
+  "confidence_levels": {
+    "H": "haute — standard explicite et stable",
+    "M": "moyenne — mapping défendable mais à valider / divergence framework"
+  },
+  "reconciliation": {
+    "required": false,
+    "reconciled": "2026-07-11",
+    "reason": "La table source porte UN type d'alignement par ligne, mais la synthèse authored donne des comptes PAR framework (CCSS 22/5/5, UK 24/2/4) non reconstructibles depuis les lignes + notes (dérivé : CCSS 22 EXACT / 4 PARTIAL / 6 ENRICH ; UK 26 EXACT / 3 PARTIAL / 3 ENRICH). L'auteur doit fixer le type par framework pour chaque ligne divergente avant le seed. Le validateur CI (B6) refusera tout mapping sans type explicite par framework.",
+    "derivation_rule": "alignment.derivation = 'note' (explicite dans la note/divergences du doc source) | 'row-confirmed' (type de ligne confirmé par framework) | 'reconciled' (type fixé par framework, cf. reconciliation_note)",
+    "rules_applied": [
+      "R1 — les notes et la section Divergences de Crosswalk-Curriculum-Fractions.md font foi quand elles existent",
+      "R2 — équivalence d'âge UK Year ≈ US Grade+1 : nœud Atlas G mappé Y(G+1) = EXACT en âge, mappé Y(G+2) = ENRICH",
+      "R3 — CCSS : standard cité d'un grade supérieur au nœud Atlas ⇒ ENRICH (Divergence 1 : le graphe Atlas est ordonné par prérequis, la restitution ré-étiquette au grade)",
+      "Cognitif MoE — l'enum CognitiveLevel du référentiel fait foi (RECALL→Knowing, APPLY→Applying, REASON→Reasoning) ; aucun override retenu, proposition originale conservée dans authored_cognitive"
+    ],
+    "authored_synthesis_original": {
+      "CCSS_M": {
+        "EXACT": 22,
+        "PARTIAL": 5,
+        "ENRICH": 5
+      },
+      "UK_NC": {
+        "EXACT": 24,
+        "PARTIAL": 2,
+        "ENRICH": 4
+      }
+    },
+    "authored_synthesis_note": "Comptes saisis à la main dans le doc source, non reconstructibles (UK 24+2+4 = 30 ≠ 32) — conservés pour audit, remplacés par computed_synthesis.",
+    "computed_synthesis": {
+      "CCSS_M": {
+        "covered": 32,
+        "EXACT": 18,
+        "PARTIAL": 6,
+        "ENRICH": 8
+      },
+      "UK_NC": {
+        "covered": 32,
+        "EXACT": 22,
+        "PARTIAL": 7,
+        "ENRICH": 3
+      },
+      "MOE_UAE": {
+        "covered": 32,
+        "grain": "domaine + grade-band + niveau cognitif (pas de types d'alignement — le framework ne publie pas de codes)",
+        "cognitive_levels": {
+          "Knowing": 2,
+          "Applying": 18,
+          "Reasoning": 12
+        }
+      }
+    },
+    "expert_confirmation_pending": true,
+    "decisions": [
+      "Types d'alignement — 10 entrées réconciliées :",
+      "#10 MATH.G3.NF.NUMBER_LINE_PLACE [uk_nc] : EXACT -> PARTIAL — Réconcilié (R1) : UK Y3 englobe le placement sur la droite numérique dans 'fractions as numbers' sans l'isoler (note : 'UK l'implique sans l'isoler') — correspondance implicite, pas directe ⇒ PARTIAL ; l'EXACT de la ligne venait de CCSS 3.NF.A.2 explicite.",
+      "#13 MATH.G3.NF.WHOLE_AS_FRACTION [uk_nc] : EXACT -> PARTIAL — Réconcilié (R1) : le descriptor UK est lui-même marqué 'implicite' (Y3–Y5) — b/b=1 n'est nommé par aucun objectif UK NC ⇒ PARTIAL au grain honnête ; l'EXACT de la ligne venait de CCSS 3.NF.A.3c explicite.",
+      "#18 MATH.G4.NF.ADD_UNLIKE_SIMPLE [ccss_m] : EXACT -> ENRICH — Réconcilié (R3) : 5.NF.A.1 est un standard G5 ; Atlas place la compétence en G4 — avance d'un grade (Divergence 1), même standard et même situation que #17 ⇒ ENRICH côté CCSS (le 'sous-cas' va en nuance, pas en type) ; l'EXACT de la ligne venait d'UK Y5, exactement ce cas à l'âge (G4≈Y5).",
+      "#19 MATH.G4.NF.COMMON_DENOM [ccss_m] : EXACT -> ENRICH — Réconcilié (R3) : compétence embarquée dans 5.NF.A.1 (G5) ; Atlas G4 = avance d'un grade (Divergence 1), cohérent avec #17/#18 sur le même standard.",
+      "#19 MATH.G4.NF.COMMON_DENOM [uk_nc] : EXACT -> ENRICH — Réconcilié (R2) : descriptor Y6 ('use common multiples to express fractions in the same denomination') pour un nœud Atlas G4 (âge exact = Y5) — Y6 ⇒ ENRICH, cohérent avec #17 (même situation Y6/G4).",
+      "#20 MATH.G4.NF.COMPARE_BENCHMARK [uk_nc] : EXACT -> PARTIAL — Réconcilié (R1) : descriptor marqué 'implicite' — UK NC n'exige pas la stratégie benchmark que CCSS 4.NF.A.2 nomme ; la compétence couvre une partie des objectifs 'compare and order' Y5–Y6 ⇒ PARTIAL.",
+      "#21 MATH.G4.NF.COMPARE_DIFF_DENOM [uk_nc] : EXACT -> PARTIAL — Réconcilié (R2) : couverture répartie — Y5 ne couvre que le cas 'dénominateurs multiples du même nombre' (à l'âge, G4≈Y5) ; la généralisation (incl. fractions > 1) relève de Y6 ⇒ couverture partielle à l'âge, PARTIAL.",
+      "#26 MATH.G4.NS.GCD [uk_nc] : ENRICH -> EXACT — Réconcilié (R2, levée du flag 'À réconcilier' de la note) : Y5 'common factors of two numbers' est à l'âge du nœud Atlas G4 (Year≈Grade+1) — l'ENRICH de la ligne venait du côté CCSS (PGCD formalisé G6) ⇒ EXACT côté UK.",
+      "#30 MATH.G5.NF.IMPROPER_TO_MIXED [ccss_m] : EXACT -> PARTIAL — Réconcilié (R1) : note 'Implicite' — CCSS ne nomme pas la conversion impropre→mixte comme standard dédié ; sous-geste de 4.NF.B.3b ⇒ PARTIAL (alternative PREREQ possible, à trancher par l'expert) ; l'EXACT de la ligne venait d'UK Y5 explicite.",
+      "#31 MATH.G5.NF.MIXED_TO_IMPROPER [ccss_m] : EXACT -> PARTIAL — Réconcilié (R1) : idem #30 — conversion mixte→impropre implicite dans 4.NF.B.3c / 5.NF.A.1, pas de standard dédié ⇒ PARTIAL (alternative PREREQ possible) ; l'EXACT de la ligne venait d'UK Y5 explicite.",
+      "Cognitifs MoE — 12 alignés sur l'enum du référentiel :",
+      "#1 MATH.G2.NS.EQUAL_SHARES : Knowing -> Applying",
+      "#3 MATH.G2.NS.NAME_FRACTION_VISUAL : Knowing -> Applying",
+      "#7 MATH.G3.NF.EQUIVALENCE_VISUAL : Knowing -> Reasoning",
+      "#8 MATH.G3.NF.FRACTION_AS_PART : Knowing -> Applying",
+      "#12 MATH.G3.NF.UNIT_FRACTION : Knowing -> Reasoning",
+      "#13 MATH.G3.NF.WHOLE_AS_FRACTION : Knowing -> Reasoning",
+      "#15 MATH.G4.NF.ADD_SAME_IMPROPER : Applying -> Reasoning",
+      "#17 MATH.G4.NF.ADD_UNLIKE_LCM : Applying -> Reasoning",
+      "#18 MATH.G4.NF.ADD_UNLIKE_SIMPLE : Applying -> Reasoning",
+      "#25 MATH.G4.NS.FACTORS : Knowing -> Applying",
+      "#28 MATH.G5.NF.ADD_MIXED : Applying -> Reasoning",
+      "#32 MATH.G5.NF.SUB_UNLIKE_LCM : Applying -> Reasoning",
+      "Synthèse — authored_synthesis remplacée par computed_synthesis (recalcul programmatique) ; l'authored UK (24/2/4) ne sommait pas à 32."
+    ]
+  },
+  "mappings": [
+    {
+      "n": 1,
+      "competency_code": "MATH.G2.NS.EQUAL_SHARES",
+      "ccss_m": {
+        "standards": [
+          "2.G.A.3",
+          "1.G.A.3"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "1.G.A.3 aussi"
+      },
+      "uk_nc": {
+        "years": "Y1-Y2",
+        "descriptor": "fractions of a shape",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (parts égales)",
+        "grade_band": "G2",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (APPLY → Applying) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 2,
+      "competency_code": "MATH.G2.NS.HALVES_QUARTERS",
+      "ccss_m": {
+        "standards": [
+          "2.G.A.3"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y1-Y2",
+        "descriptor": "half/quarter (Y1), Y2",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions",
+        "grade_band": "G2",
+        "cognitive_level": "Knowing",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 3,
+      "competency_code": "MATH.G2.NS.NAME_FRACTION_VISUAL",
+      "ccss_m": {
+        "standards": [
+          "2.G.A.3",
+          "3.NF.A.1"
+        ],
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "Pont vers 3.NF."
+      },
+      "uk_nc": {
+        "years": "Y2-Y3",
+        "descriptor": "name fraction of a shaded model",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions",
+        "grade_band": "G2-G3",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (APPLY → Applying) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 4,
+      "competency_code": "MATH.G3.NF.ADD_SAME_NOSIMP",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3a"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "CCSS introduit en G4 ; Atlas G3 (suit le grain UK)."
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "add/subtract same denom",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "UK introduit l'addition même-dénom en Y3."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G3-G4",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 5,
+      "competency_code": "MATH.G3.NF.COMPARE_SAME_DENOM",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.3d"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "compare same denom",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (comparaison)",
+        "grade_band": "G3",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 6,
+      "competency_code": "MATH.G3.NF.COMPARE_SAME_NUM",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.3d"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "compare unit fractions",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (comparaison)",
+        "grade_band": "G3",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 7,
+      "competency_code": "MATH.G3.NF.EQUIVALENCE_VISUAL",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.3a",
+          "3.NF.A.3b"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "equivalent fractions (diagrams)",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (équivalence)",
+        "grade_band": "G3",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 8,
+      "competency_code": "MATH.G3.NF.FRACTION_AS_PART",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.1"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "non-unit fractions",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions",
+        "grade_band": "G3",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (APPLY → Applying) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 9,
+      "competency_code": "MATH.G3.NF.FRACTION_OF_SET",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.4",
+          "3.OA"
+        ],
+        "alignment": "PARTIAL",
+        "confidence": "M",
+        "derivation": "note",
+        "note": "Pas de standard dédié G3 ; couvert plus tard via multiplication."
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "fractions of a discrete set",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "UK : standard explicite Y3."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions",
+        "grade_band": "G3-G4",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 10,
+      "competency_code": "MATH.G3.NF.NUMBER_LINE_PLACE",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.2"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "2a, 2b ; CCSS très number-line-centric."
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "fractions as numbers",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "UK l'implique sans l'isoler.",
+        "reconciliation_note": "Réconcilié (R1) : UK Y3 englobe le placement sur la droite numérique dans 'fractions as numbers' sans l'isoler (note : 'UK l'implique sans l'isoler') — correspondance implicite, pas directe ⇒ PARTIAL ; l'EXACT de la ligne venait de CCSS 3.NF.A.2 explicite."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (représentation)",
+        "grade_band": "G3",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 11,
+      "competency_code": "MATH.G3.NF.SUB_SAME_NOSIMP",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3a"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "Même décalage de grade que #4."
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "add/subtract same denom",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "note",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G3-G4",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 12,
+      "competency_code": "MATH.G3.NF.UNIT_FRACTION",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.1"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y3",
+        "descriptor": "unit fractions",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions",
+        "grade_band": "G3",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 13,
+      "competency_code": "MATH.G3.NF.WHOLE_AS_FRACTION",
+      "ccss_m": {
+        "standards": [
+          "3.NF.A.3c"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "CCSS explicite."
+      },
+      "uk_nc": {
+        "years": "Y3-Y5",
+        "descriptor": "whole numbers as fractions (implicite)",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "",
+        "reconciliation_note": "Réconcilié (R1) : le descriptor UK est lui-même marqué 'implicite' (Y3–Y5) — b/b=1 n'est nommé par aucun objectif UK NC ⇒ PARTIAL au grain honnête ; l'EXACT de la ligne venait de CCSS 3.NF.A.3c explicite."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions",
+        "grade_band": "G3",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 14,
+      "competency_code": "MATH.G3.NS.MULT_FACTS",
+      "ccss_m": {
+        "standards": [
+          "3.OA.C.7"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y4",
+        "descriptor": "tables up to 12x12",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "UK formalise la mémorisation en Y4."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Opérations (faits)",
+        "grade_band": "G3",
+        "cognitive_level": "Knowing",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 15,
+      "competency_code": "MATH.G4.NF.ADD_SAME_IMPROPER",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3b",
+          "4.NF.B.3c"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y5",
+        "descriptor": "statements > 1 as mixed number",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "UK : ex. 2/5+4/5=6/5=1 1/5 (Y5)."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G4",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Applying",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 16,
+      "competency_code": "MATH.G4.NF.ADD_SAME_SIMPLIFY",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3a",
+          "4.NF.A.1"
+        ],
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "Simplification non exigée par CCSS — cf. #23."
+      },
+      "uk_nc": {
+        "years": "Y5-Y6",
+        "descriptor": "add same denom + simplify",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "La simplification relève de Y6."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G4-G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 17,
+      "competency_code": "MATH.G4.NF.ADD_UNLIKE_LCM",
+      "ccss_m": {
+        "standards": [
+          "5.NF.A.1"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "CCSS G5 ; Atlas G4 (chaîne de prérequis)."
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "add/subtract different denom",
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "UK Y6 ; Atlas G4."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G5",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Applying",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 18,
+      "competency_code": "MATH.G4.NF.ADD_UNLIKE_SIMPLE",
+      "ccss_m": {
+        "standards": [
+          "5.NF.A.1"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "Sous-cas.",
+        "reconciliation_note": "Réconcilié (R3) : 5.NF.A.1 est un standard G5 ; Atlas place la compétence en G4 — avance d'un grade (Divergence 1), même standard et même situation que #17 ⇒ ENRICH côté CCSS (le 'sous-cas' va en nuance, pas en type) ; l'EXACT de la ligne venait d'UK Y5, exactement ce cas à l'âge (G4≈Y5)."
+      },
+      "uk_nc": {
+        "years": "Y5",
+        "descriptor": "denom = multiples du même nombre",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "UK Y5 exactement ce cas."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G4-G5",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Applying",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 19,
+      "competency_code": "MATH.G4.NF.COMMON_DENOM",
+      "ccss_m": {
+        "standards": [
+          "5.NF.A.1"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "Embarqué dans 5.NF.A.1.",
+        "reconciliation_note": "Réconcilié (R3) : compétence embarquée dans 5.NF.A.1 (G5) ; Atlas G4 = avance d'un grade (Divergence 1), cohérent avec #17/#18 sur le même standard."
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "common multiples for same denomination",
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "",
+        "reconciliation_note": "Réconcilié (R2) : descriptor Y6 ('use common multiples to express fractions in the same denomination') pour un nœud Atlas G4 (âge exact = Y5) — Y6 ⇒ ENRICH, cohérent avec #17 (même situation Y6/G4)."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 20,
+      "competency_code": "MATH.G4.NF.COMPARE_BENCHMARK",
+      "ccss_m": {
+        "standards": [
+          "4.NF.A.2"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "CCSS nomme explicitement le benchmark 1/2."
+      },
+      "uk_nc": {
+        "years": "Y5-Y6",
+        "descriptor": "compare using benchmarks (implicite)",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "",
+        "reconciliation_note": "Réconcilié (R1) : descriptor marqué 'implicite' — UK NC n'exige pas la stratégie benchmark que CCSS 4.NF.A.2 nomme ; la compétence couvre une partie des objectifs 'compare and order' Y5–Y6 ⇒ PARTIAL."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (comparaison)",
+        "grade_band": "G4",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 21,
+      "competency_code": "MATH.G4.NF.COMPARE_DIFF_DENOM",
+      "ccss_m": {
+        "standards": [
+          "4.NF.A.2"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y5-Y6",
+        "descriptor": "Y5 (multiples) / Y6 (incl. >1)",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "",
+        "reconciliation_note": "Réconcilié (R2) : couverture répartie — Y5 ne couvre que le cas 'dénominateurs multiples du même nombre' (à l'âge, G4≈Y5) ; la généralisation (incl. fractions > 1) relève de Y6 ⇒ couverture partielle à l'âge, PARTIAL."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (comparaison)",
+        "grade_band": "G4",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 22,
+      "competency_code": "MATH.G4.NF.EQUIVALENCE_COMPUTE",
+      "ccss_m": {
+        "standards": [
+          "4.NF.A.1"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y4-Y5",
+        "descriptor": "Y4 families / Y5 write equivalents",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (équivalence)",
+        "grade_band": "G4",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 23,
+      "competency_code": "MATH.G4.NF.SIMPLIFY_FRACTION",
+      "ccss_m": {
+        "standards": [
+          "6.NS.B.4"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "M",
+        "derivation": "note",
+        "note": "CCSS n'exige pas la réduction ; factorisation commune formalisée en G6. Cf. §Divergences 2."
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "use common factors to simplify",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "Exigence Y6 explicite."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (équivalence)",
+        "grade_band": "G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 24,
+      "competency_code": "MATH.G4.NF.SUB_SAME_SIMPLIFY",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3a",
+          "4.NF.A.1"
+        ],
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "Idem #16."
+      },
+      "uk_nc": {
+        "years": "Y5-Y6",
+        "descriptor": "subtract same denom + simplify",
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G4-G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 25,
+      "competency_code": "MATH.G4.NS.FACTORS",
+      "ccss_m": {
+        "standards": [
+          "4.OA.B.4"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y5",
+        "descriptor": "multiples & factors, factor pairs",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Théorie des nombres",
+        "grade_band": "G4",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Knowing",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (APPLY → Applying) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 26,
+      "competency_code": "MATH.G4.NS.GCD",
+      "ccss_m": {
+        "standards": [
+          "6.NS.B.4"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "CCSS formalise le PGCD en G6 ; Atlas G4 (prérequis de simplification)."
+      },
+      "uk_nc": {
+        "years": "Y5-Y6",
+        "descriptor": "Y5 common factors / Y6 simplify",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "À réconcilier : Y5 common factors ≈ G4 (équivalence d'âge UK Year = Grade+1).",
+        "reconciliation_note": "Réconcilié (R2, levée du flag 'À réconcilier' de la note) : Y5 'common factors of two numbers' est à l'âge du nœud Atlas G4 (Year≈Grade+1) — l'ENRICH de la ligne venait du côté CCSS (PGCD formalisé G6) ⇒ EXACT côté UK."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Théorie des nombres",
+        "grade_band": "G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 27,
+      "competency_code": "MATH.G4.NS.LCM",
+      "ccss_m": {
+        "standards": [
+          "6.NS.B.4"
+        ],
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "note",
+        "note": "CCSS formalise le PPCM en G6 ; Atlas G4 (prérequis dénom. commun)."
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "common multiples",
+        "alignment": "ENRICH",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Théorie des nombres",
+        "grade_band": "G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 28,
+      "competency_code": "MATH.G5.NF.ADD_MIXED",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3c",
+          "5.NF.A.1"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "4.NF.B.3c (like) / 5.NF.A.1 (unlike)."
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "add mixed numbers",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G5",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Applying",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    },
+    {
+      "n": 29,
+      "competency_code": "MATH.G5.NF.ADD_UNLIKE_FULL",
+      "ccss_m": {
+        "standards": [
+          "5.NF.A.1"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "add/subtract different denom & mixed",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G5",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 30,
+      "competency_code": "MATH.G5.NF.IMPROPER_TO_MIXED",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3b"
+        ],
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "Implicite.",
+        "reconciliation_note": "Réconcilié (R1) : note 'Implicite' — CCSS ne nomme pas la conversion impropre→mixte comme standard dédié ; sous-geste de 4.NF.B.3b ⇒ PARTIAL (alternative PREREQ possible, à trancher par l'expert) ; l'EXACT de la ligne venait d'UK Y5 explicite."
+      },
+      "uk_nc": {
+        "years": "Y5",
+        "descriptor": "convert one form to the other",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "UK Y5 explicite."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (formes)",
+        "grade_band": "G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 31,
+      "competency_code": "MATH.G5.NF.MIXED_TO_IMPROPER",
+      "ccss_m": {
+        "standards": [
+          "4.NF.B.3c",
+          "5.NF.A.1"
+        ],
+        "alignment": "PARTIAL",
+        "confidence": "H",
+        "derivation": "reconciled",
+        "note": "Implicite.",
+        "reconciliation_note": "Réconcilié (R1) : idem #30 — conversion mixte→impropre implicite dans 4.NF.B.3c / 5.NF.A.1, pas de standard dédié ⇒ PARTIAL (alternative PREREQ possible) ; l'EXACT de la ligne venait d'UK Y5 explicite."
+      },
+      "uk_nc": {
+        "years": "Y5",
+        "descriptor": "convert one form to the other",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": "UK Y5 explicite."
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (formes)",
+        "grade_band": "G5",
+        "cognitive_level": "Applying",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        }
+      }
+    },
+    {
+      "n": 32,
+      "competency_code": "MATH.G5.NF.SUB_UNLIKE_LCM",
+      "ccss_m": {
+        "standards": [
+          "5.NF.A.1"
+        ],
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "uk_nc": {
+        "years": "Y6",
+        "descriptor": "add/subtract different denom",
+        "alignment": "EXACT",
+        "confidence": "H",
+        "derivation": "row-confirmed",
+        "note": ""
+      },
+      "moe_uae": {
+        "domain": "Numbers & Operations",
+        "strand": "Fractions (opérations)",
+        "grade_band": "G5",
+        "cognitive_level": "Reasoning",
+        "confidence": {
+          "domain": "H",
+          "grade_band": "M"
+        },
+        "authored_cognitive": "Applying",
+        "cognitive_note": "Aligné sur l'enum CognitiveLevel du référentiel (REASON → Reasoning) — l'enum Atlas fait foi (reco Cadrage-LotB §3/B1) ; proposition MoE originale conservée dans authored_cognitive."
+      }
+    }
+  ]
+}

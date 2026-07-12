@@ -70,6 +70,12 @@ _ALIGNMENT_WORDING_AR = {
     AlignmentType.PREREQ: "لبنة أساسية لـ {code}",
     AlignmentType.ENRICH: "يتجاوز متطلبات {code}",
 }
+# ENRICH-de-grade (M-4) : la compétence est mesurée UN GRADE PLUS TÔT que le standard —
+# c'est un argument (« on mesure dès G4 ce que votre programme demande en G5 »), pas un
+# « hors programme ». Wording distinct de l'ENRICH-d'exigence (ci-dessus) ; sélectionné
+# quand enrich_kind == 'grade'.
+_ENRICH_GRADE_WORDING_EN = "taught earlier than {code}"
+_ENRICH_GRADE_WORDING_AR = "يُدرَّس قبل {code}"
 # Confiance M → mapping indicatif tant que non fiabilisé (B7). Suffixe par langue
 # (revue 2026-07-12, MAJ-2 : un suffixe EN concaténé au wording AR injectait de
 # l'anglais LTR dans une chaîne RTL — visible sur 100 % des badges MoE, tous en M).
@@ -115,6 +121,10 @@ def _standard_payload(m: CompetencyCurriculumMap, std: CurriculumStandard) -> di
         # jamais de code affiché ; wording nomme le domaine, pas la clé technique
         wording_en = _MOE_WORDING_EN.format(label=std.label_en)
         wording_ar = _MOE_WORDING_AR.format(label=std.label_ar)
+    elif m.alignment_type == AlignmentType.ENRICH and m.enrich_kind == "grade":
+        # ENRICH-de-grade : « taught earlier than » plutôt que « beyond … expectations »
+        wording_en = _ENRICH_GRADE_WORDING_EN.format(code=std.code)
+        wording_ar = _ENRICH_GRADE_WORDING_AR.format(code=std.code)
     else:
         wording_en = _ALIGNMENT_WORDING_EN[m.alignment_type].format(code=std.code)
         wording_ar = _ALIGNMENT_WORDING_AR[m.alignment_type].format(code=std.code)

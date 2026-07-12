@@ -52,9 +52,10 @@ def _std(framework, code):
                               label_en=f"label {code}", label_ar=f"ar {code}", grade_hint="G4")
 
 
-def _map(comp, std, alignment, confidence=MappingConfidence.H):
+def _map(comp, std, alignment, confidence=MappingConfidence.H, enrich_kind=None):
     return CompetencyCurriculumMap(competency_id=comp.id, standard_id=std.id,
                                    alignment_type=alignment, confidence=confidence,
+                                   enrich_kind=enrich_kind,
                                    weight_source=WeightSource.EXPERT, weight_version=1)
 
 
@@ -309,6 +310,32 @@ def test_coverage_covered_only_if_all_exact_mastered():
     # aucun « meets » individuel : la couverture n'existe qu'agrégée au rapport école
     profile = client.get(f"/students/{ids['student']}/profile", headers=_auth(ids["teacher"])).json()
     assert "meets" not in str(profile)
+    _teardown()
+
+
+def test_enrich_grade_vs_requirement_wording():
+    # M-4 (décision 2026-07-12) : un ENRICH-de-grade dit « taught earlier than »
+    # (un argument), un ENRICH-d'exigence dit « beyond … expectations ».
+    from src.models.competency import Competency
+    from src.models.curriculum import CurriculumStandard
+    client, ids, s = _setup()
+    grade_std = _std(CurriculumFramework.CCSS_M, "5.NF.A.1")     # Atlas mesure plus tôt
+    req_std = _std(CurriculumFramework.CCSS_M, "6.NS.B.4")        # exigence absente en CCSS
+    s.add_all([grade_std, req_std]); s.flush()
+    a = s.execute(select(Competency).where(Competency.code == "M.A")).scalar_one()
+    s.add_all([
+        _map(a, grade_std, AlignmentType.ENRICH, enrich_kind="grade"),
+        _map(a, req_std, AlignmentType.ENRICH, enrich_kind="requirement"),
+    ])
+    s.commit()
+    _set_view(s, ids["org"], CurriculumView.CCSS_M)
+
+    profile = client.get(f"/students/{ids['student']}/profile", headers=_auth(ids["teacher"])).json()
+    a_comp = next(x for x in profile["competencies"] if x["code"] == "M.A")
+    wordings = {std["code"]: std for std in a_comp["standards"]}
+    assert wordings["5.NF.A.1"]["wording_en"] == "taught earlier than 5.NF.A.1"
+    assert wordings["5.NF.A.1"]["wording_ar"] == "يُدرَّس قبل 5.NF.A.1"
+    assert wordings["6.NS.B.4"]["wording_en"] == "beyond 6.NS.B.4 expectations"
     _teardown()
 
 

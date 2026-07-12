@@ -25,8 +25,9 @@ def test_generate_produit_un_markdown_non_vide_et_complet():
     # 32 mappings × 2 tables (correspondance + MoE) = 64 lignes de données
     assert len(re.findall(r"^\| \d+ \|", text, flags=re.M)) == 64
     # la synthèse est CALCULÉE depuis les lignes (mêmes comptes que le validateur B6)
-    assert "| **CCSS_M** | 32 / 32 | 18 | 6 |" in text
-    assert "| **UK_NC** | 32 / 32 | 22 | 7 |" in text
+    # comptes post-Q1 (2026-07-12) : #30/#31 [ccss] et #13 [uk] PARTIAL → PREREQ
+    assert "| **CCSS_M** | 32 / 32 | 18 | 4 |" in text
+    assert "| **UK_NC** | 32 / 32 | 22 | 6 |" in text
 
 
 def test_vue_generee_committee_synchronisee_avec_le_pivot():

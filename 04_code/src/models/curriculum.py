@@ -64,6 +64,11 @@ class CompetencyCurriculumMap(Base):
     )
     note: Mapped[Optional[str]] = mapped_column(String, default=None)
 
+    # ENRICH seulement (M-4) : 'grade' (Atlas mesure un grade plus tôt → « taught earlier
+    # than ») vs 'requirement' (exigence absente du standard → « beyond … expectations »).
+    # NULL pour tout autre type d'alignement.
+    enrich_kind: Mapped[Optional[str]] = mapped_column(String, default=None)
+
     # même provenance versionnée que les arêtes du graphe (expert aujourd'hui,
     # empirique après calibration) — cf. CompetencyPrerequisite
     weight_source: Mapped[WeightSource] = mapped_column(

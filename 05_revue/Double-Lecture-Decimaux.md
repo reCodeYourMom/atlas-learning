@@ -2,24 +2,31 @@
 
 **Lot 3 du dossier de revue** · **Date** : 2026-07-12 · **Statut** : PROPOSITION — à valider
 **Objet** : `03_referentiel/referentiel_decimals_draft.json` — **14 nœuds, 26 arêtes** (21 intra + 5 ponts vers les fractions)
-**Destinataires** : **Lecteur A — didacticien mathématiques** · **Lecteur B — enseignant primaire EAU en exercice**
-**Budget cible : 2 h par lecteur**
+**Destinataire** : **Didacticien mathématiques** (lecture experte simple — cf. mise à jour ci-dessous)
+**Budget cible : 2 h**
 
 > ⚠️ **Avertissement obligatoire (Méthodologie §0)** : les `difficulty_prior` et `correlation_strength` de ce référentiel sont des **points de départ experts**. Ce ne sont **ni un standard, ni une mesure**. Ils seront ré-estimés sur trafic réel (Lot C). **Aucun nœud de ce document n'est calibré, aligné MoE, ni validé.**
+
+> ### ⚑ Mise à jour 2026-07-12 — lecture experte SIMPLE (décision D-A2)
+> Le fondateur a retenu **un seul relecteur : le didacticien** (pas d'enseignant primaire EAU). Ce document, écrit pour une double lecture, s'applique donc ainsi :
+> - **Une seule lecture experte** vaut franchissement du gate A1.8 (§0 ci-dessous adapté). Ignorez la colonne **« Lecteur B — enseignant EAU »** des grilles : laissez-la vide.
+> - **Pas de séance de réconciliation** : les arbitrages (§4) sont tranchés par le didacticien seul et journalisés au §5.
+> - **RISQUE RÉSIDUEL ASSUMÉ — validation terrain EAU non couverte.** Tous les points marqués *« votre terrain »* / *« question à l'enseignant EAU »* (N5 money model dirham/fils, placement décimaux vs fractions en G4, registre monétaire) **restent OUVERTS** : ils ne bloquent pas la validation du didacticien, mais sont à confirmer plus tard (école pilote, ou document d'outcomes MoE). Listez-les au §5 comme « à confirmer terrain EAU ».
+> - **Conséquence B7** : sans enseignant EAU, la confiance de l'alignement MoE **reste « M »** faute de canal vers le document d'outcomes du ministère.
 
 ---
 
 ## 0. Protocole — à lire avant de commencer (5 min)
 
-**Le gate A1.8 est bloquant : aucun nœud ne passe `active` sans double validation.**
+**Le gate A1.8 est bloquant : aucun nœud ne passe `active` sans validation experte.**
 
-1. **Lecture INDÉPENDANTE.** Chacun remplit la grille **seul**, sans voir l'autre. Ne comparez pas vos réponses avant d'avoir terminé.
-2. **Réconciliation.** Les désaccords sont listés et arbitrés en séance. **Chaque arbitrage est journalisé** (registre §5). Un désaccord non tranché = le nœud ou l'arête **reste en `draft`**.
+1. **Lecture experte.** Le didacticien remplit la grille nœud par nœud, arête par arête.
+2. **Arbitrages.** Les points à trancher (§4) et tout désaccord avec un pré-avis sont **journalisés au registre §5**. Un point non tranché = le nœud ou l'arête **reste en `draft`**. Les points marqués « terrain EAU » sont journalisés comme **« à confirmer terrain »** (ils ne bloquent pas — cf. bannière).
 3. Les **pré-avis** ci-dessous sont ceux du rédacteur du draft, relus. Ils sont là pour vous faire gagner du temps, **pas** pour vous orienter. Un pré-avis « ✅ conforme » n'est pas une validation : c'est une hypothèse que vous confirmez ou cassez.
 
-**Ce que débloque votre double signature** (avec le Lot 4) : le lancement de la production des ~140 items décimaux (A-5/A-6).
+**Ce que débloque votre signature** (avec le Lot 4) : le lancement de la production des ~140 items décimaux (A-5/A-6).
 
-**Comment cocher** : chaque case a **deux colonnes de signature**. Écrivez `✓` si le point passe, `✗` s'il échoue (et dites pourquoi). **Un seul ✗ sur un nœud = retour en rédaction pour ce nœud** (pas pour le référentiel entier).
+**Comment cocher** : Écrivez `✓` si le point passe, `✗` s'il échoue (et dites pourquoi) dans la colonne **Lecteur A (didacticien)** ; laissez la colonne **Lecteur B** vide. **Un seul ✗ sur un nœud = retour en rédaction pour ce nœud** (pas pour le référentiel entier).
 
 ---
 
@@ -497,26 +504,26 @@
 5. Simulation de cohorte (gate **G5**) — ⚠️ **`scripts/simulate_cohort.py` hardcodait `referentiel_fractions.json` (errata E10)** : vérifier qu'il est paramétré **avant** de compter sur ce gate.
 6. Production des items (A-5) puis version arabe (A-6) — **conditionnée aussi par le Lot 4** (décision D-A1 confirmée).
 
-**Ce que débloque cette double signature** : le passage des 14 nœuds de `draft` à `active`, donc le démarrage de la production décimaux.
+**Ce que débloque cette signature** : le passage des 14 nœuds de `draft` à `active`, donc le démarrage de la production décimaux.
 
 ---
 
-## Signatures
+## Signature (lecture experte simple — D-A2)
 
-| | **Lecteur A — Didacticien** | **Lecteur B — Enseignant primaire EAU** |
-|---|---|---|
-| **Nom** | ____________________________ | ____________________________ |
-| **Date de lecture (seul)** | ____________________ | ____________________ |
-| **Nœuds validés** | ______ / 14 | ______ / 14 |
-| **Arêtes validées** | ______ / 26 | ______ / 26 |
-| **Verdict** | ☐ Draft validé ☐ Validé sous réserve ☐ Retour en rédaction | ☐ Draft validé ☐ Validé sous réserve ☐ Retour en rédaction |
-| **Signature** | ____________________________ | ____________________________ |
-
-| **Réconciliation** | |
+| | **Didacticien** |
 |---|---|
-| Date de la séance | ____________________ |
-| Désaccords tranchés | ______ / ______ |
+| **Nom** | ____________________________ |
+| **Date de lecture** | ____________________ |
+| **Nœuds validés** | ______ / 14 |
+| **Arêtes validées** | ______ / 26 |
+| **Verdict** | ☐ Draft validé ☐ Validé sous réserve ☐ Retour en rédaction |
+| **Signature** | ____________________________ |
+
+| **Clôture** | |
+|---|---|
+| Points tranchés (registre §5) | ______ / ______ |
 | Nœuds maintenus en `draft` | ____________________________________________ |
+| **Points « à confirmer terrain EAU »** (non bloquants, cf. bannière) | ____________________________________________ |
 | **Gate A1.8** | ☐ **FRANCHI** ☐ Non franchi |
 
 *Les priors et poids de ce référentiel sont des choix experts, non mesurés. Ils seront ré-estimés sur trafic réel (Lot C). Aucune compétence décimaux n'est calibrée ni alignée sur un curriculum tant que le crosswalk (Lot B, règle CI B6) ne l'a pas mappée.*

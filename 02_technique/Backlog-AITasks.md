@@ -591,3 +591,9 @@ Notes d'orchestration de l'Epic 7 (issues de la revue de session). **Ordre recom
 - [ ] **LLM pour génération d'items et remédiation** : Claude (cloud, hors GCC) vs LLM arabe local (Jais-70B / ALLaM, hébergeable en région UAE). Trancher quand on industrialise la génération AR et la remédiation (Epic 2.2 / 5.6). Enjeu : un LLM local règle le garde-fou « données hors-GCC » et améliore potentiellement la qualité AR ; Claude reste plus fort en orchestration/raisonnement. Décision conditionnée au volume et aux exigences de souveraineté du premier client. NB : la génération ne contient déjà aucune donnée élève, donc l'enjeu souveraineté est limité au MVP — devient critique si la remédiation s'appuie un jour sur des données d'usage.
 - [ ] Échelle Elo définitive et table d'ancrage trajectoire (barème expert initial → cohorte réelle).
 - [ ] Seuils exacts : quarantaine item, ré-estimation des poids, arrêt de session.
+
+---
+
+## Backlog produit — issus de la revue crosswalk (05_revue, décisions 2026-07-12)
+
+- [ ] **Métrique de granularité « N gestes Atlas par standard » (C-3)** — argument de vente n°1 : un standard officiel = jusqu'à 5 compétences Atlas mesurées séparément (« là où votre programme voit une case, nous mesurons cinq gestes distincts »). Se calcule trivialement depuis `competency_curriculum_map` (COUNT par `standard_id`). À afficher au **rapport école** et au **one-pager**. Ne touche PAS aux types d'alignement (le type unique par ligne ne peut porter simultanément grain BROADER et grade ENRICH — c'est une métrique dérivée, pas un type). Décidé par le fondateur le 2026-07-12.

@@ -1,6 +1,6 @@
 {
   "version": "0.2-reconciled",
-  "status": "RECONCILED — B-0 (2026-07-11) : types d'alignement fixés par framework, cognitifs MoE alignés sur l'enum du référentiel, synthèse recalculée ; en attente de confirmation expert (reconciliation.expert_confirmation_pending).",
+  "status": "RECONCILED + décisions fondateur 2026-07-12 — B-0 (2026-07-11) : types d'alignement fixés par framework, cognitifs MoE alignés sur l'enum du référentiel, synthèse recalculée ; en attente de confirmation expert (reconciliation.expert_confirmation_pending).",
   "source": "Crosswalk-Curriculum-Fractions.md v1 (2026-06-23)",
   "generated": "2026-07-11",
   "frameworks": {
@@ -65,13 +65,15 @@
       "CCSS_M": {
         "covered": 32,
         "EXACT": 18,
-        "PARTIAL": 6,
-        "ENRICH": 8
+        "PARTIAL": 4,
+        "ENRICH": 8,
+        "PREREQ": 2
       },
       "UK_NC": {
         "covered": 32,
         "EXACT": 22,
-        "PARTIAL": 7,
+        "PARTIAL": 6,
+        "PREREQ": 1,
         "ENRICH": 3
       },
       "MOE_UAE": {
@@ -111,6 +113,10 @@
       "#28 MATH.G5.NF.ADD_MIXED : Applying -> Reasoning",
       "#32 MATH.G5.NF.SUB_UNLIKE_LCM : Applying -> Reasoning",
       "Synthèse — authored_synthesis remplacée par computed_synthesis (recalcul programmatique) ; l'authored UK (24/2/4) ne sommait pas à 32."
+    ],
+    "founder_decisions_2026-07-12": [
+      "Q1 — #30/#31 [ccss_m] et #13 [uk_nc] : PARTIAL → PREREQ (wording 'building block for').",
+      "M-4 — enrich_kind ajouté sur chaque ligne ENRICH : 'grade' (mesuré un grade plus tôt) sauf #23 [ccss_m] = 'requirement' (CCSS n'exige pas la réduction). Deux wordings ENRICH distincts."
     ]
   },
   "mappings": [
@@ -223,7 +229,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "note",
-        "note": "CCSS introduit en G4 ; Atlas G3 (suit le grain UK)."
+        "note": "CCSS introduit en G4 ; Atlas G3 (suit le grain UK).",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y3",
@@ -447,7 +454,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "note",
-        "note": "Même décalage de grade que #4."
+        "note": "Même décalage de grade que #4.",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y3",
@@ -516,11 +524,11 @@
       "uk_nc": {
         "years": "Y3-Y5",
         "descriptor": "whole numbers as fractions (implicite)",
-        "alignment": "PARTIAL",
+        "alignment": "PREREQ",
         "confidence": "H",
         "derivation": "reconciled",
         "note": "",
-        "reconciliation_note": "Réconcilié (R1) : le descriptor UK est lui-même marqué 'implicite' (Y3–Y5) — b/b=1 n'est nommé par aucun objectif UK NC ⇒ PARTIAL au grain honnête ; l'EXACT de la ligne venait de CCSS 3.NF.A.3c explicite."
+        "reconciliation_note": "Décision fondateur 2026-07-12 (Q1, cohérence #30/#31) : PARTIAL → PREREQ. Descriptor UK 'implicite', b/b=1 non nommé → 'building block for'. À confirmer didacticien."
       },
       "moe_uae": {
         "domain": "Numbers & Operations",
@@ -642,7 +650,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "note",
-        "note": "CCSS G5 ; Atlas G4 (chaîne de prérequis)."
+        "note": "CCSS G5 ; Atlas G4 (chaîne de prérequis).",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y6",
@@ -650,7 +659,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "note",
-        "note": "UK Y6 ; Atlas G4."
+        "note": "UK Y6 ; Atlas G4.",
+        "enrich_kind": "grade"
       },
       "moe_uae": {
         "domain": "Numbers & Operations",
@@ -676,7 +686,8 @@
         "confidence": "H",
         "derivation": "reconciled",
         "note": "Sous-cas.",
-        "reconciliation_note": "Réconcilié (R3) : 5.NF.A.1 est un standard G5 ; Atlas place la compétence en G4 — avance d'un grade (Divergence 1), même standard et même situation que #17 ⇒ ENRICH côté CCSS (le 'sous-cas' va en nuance, pas en type) ; l'EXACT de la ligne venait d'UK Y5, exactement ce cas à l'âge (G4≈Y5)."
+        "reconciliation_note": "Réconcilié (R3) : 5.NF.A.1 est un standard G5 ; Atlas place la compétence en G4 — avance d'un grade (Divergence 1), même standard et même situation que #17 ⇒ ENRICH côté CCSS (le 'sous-cas' va en nuance, pas en type) ; l'EXACT de la ligne venait d'UK Y5, exactement ce cas à l'âge (G4≈Y5).",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y5",
@@ -710,7 +721,8 @@
         "confidence": "H",
         "derivation": "reconciled",
         "note": "Embarqué dans 5.NF.A.1.",
-        "reconciliation_note": "Réconcilié (R3) : compétence embarquée dans 5.NF.A.1 (G5) ; Atlas G4 = avance d'un grade (Divergence 1), cohérent avec #17/#18 sur le même standard."
+        "reconciliation_note": "Réconcilié (R3) : compétence embarquée dans 5.NF.A.1 (G5) ; Atlas G4 = avance d'un grade (Divergence 1), cohérent avec #17/#18 sur le même standard.",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y6",
@@ -719,7 +731,8 @@
         "confidence": "H",
         "derivation": "reconciled",
         "note": "",
-        "reconciliation_note": "Réconcilié (R2) : descriptor Y6 ('use common multiples to express fractions in the same denomination') pour un nœud Atlas G4 (âge exact = Y5) — Y6 ⇒ ENRICH, cohérent avec #17 (même situation Y6/G4)."
+        "reconciliation_note": "Réconcilié (R2) : descriptor Y6 ('use common multiples to express fractions in the same denomination') pour un nœud Atlas G4 (âge exact = Y5) — Y6 ⇒ ENRICH, cohérent avec #17 (même situation Y6/G4).",
+        "enrich_kind": "grade"
       },
       "moe_uae": {
         "domain": "Numbers & Operations",
@@ -837,7 +850,8 @@
         "alignment": "ENRICH",
         "confidence": "M",
         "derivation": "note",
-        "note": "CCSS n'exige pas la réduction ; factorisation commune formalisée en G6. Cf. §Divergences 2."
+        "note": "CCSS n'exige pas la réduction ; factorisation commune formalisée en G6. Cf. §Divergences 2.",
+        "enrich_kind": "requirement"
       },
       "uk_nc": {
         "years": "Y6",
@@ -933,7 +947,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "note",
-        "note": "CCSS formalise le PGCD en G6 ; Atlas G4 (prérequis de simplification)."
+        "note": "CCSS formalise le PGCD en G6 ; Atlas G4 (prérequis de simplification).",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y5-Y6",
@@ -965,7 +980,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "note",
-        "note": "CCSS formalise le PPCM en G6 ; Atlas G4 (prérequis dénom. commun)."
+        "note": "CCSS formalise le PPCM en G6 ; Atlas G4 (prérequis dénom. commun).",
+        "enrich_kind": "grade"
       },
       "uk_nc": {
         "years": "Y6",
@@ -973,7 +989,8 @@
         "alignment": "ENRICH",
         "confidence": "H",
         "derivation": "row-confirmed",
-        "note": ""
+        "note": "",
+        "enrich_kind": "grade"
       },
       "moe_uae": {
         "domain": "Numbers & Operations",
@@ -1058,11 +1075,11 @@
         "standards": [
           "4.NF.B.3b"
         ],
-        "alignment": "PARTIAL",
+        "alignment": "PREREQ",
         "confidence": "H",
         "derivation": "reconciled",
         "note": "Implicite.",
-        "reconciliation_note": "Réconcilié (R1) : note 'Implicite' — CCSS ne nomme pas la conversion impropre→mixte comme standard dédié ; sous-geste de 4.NF.B.3b ⇒ PARTIAL (alternative PREREQ possible, à trancher par l'expert) ; l'EXACT de la ligne venait d'UK Y5 explicite."
+        "reconciliation_note": "Décision fondateur 2026-07-12 (Q1) : PARTIAL → PREREQ. CCSS ne nomme jamais la conversion (implicite dans 4.NF.B.3b/c) → 'building block for', plus défendable que 'covers part of'. À confirmer didacticien."
       },
       "uk_nc": {
         "years": "Y5",
@@ -1091,11 +1108,11 @@
           "4.NF.B.3c",
           "5.NF.A.1"
         ],
-        "alignment": "PARTIAL",
+        "alignment": "PREREQ",
         "confidence": "H",
         "derivation": "reconciled",
         "note": "Implicite.",
-        "reconciliation_note": "Réconcilié (R1) : idem #30 — conversion mixte→impropre implicite dans 4.NF.B.3c / 5.NF.A.1, pas de standard dédié ⇒ PARTIAL (alternative PREREQ possible) ; l'EXACT de la ligne venait d'UK Y5 explicite."
+        "reconciliation_note": "Décision fondateur 2026-07-12 (Q1) : PARTIAL → PREREQ. CCSS ne nomme jamais la conversion (implicite dans 4.NF.B.3b/c) → 'building block for', plus défendable que 'covers part of'. À confirmer didacticien."
       },
       "uk_nc": {
         "years": "Y5",

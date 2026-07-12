@@ -3,7 +3,7 @@
 > **GÉNÉRÉ — ne pas éditer.** Vue produite par `04_code/scripts/generate_crosswalk_md.py` depuis `crosswalk_fractions_draft.json` (source de vérité) ; remplacera l'authored (`Crosswalk-Curriculum-Fractions.md`) après confirmation expert (`reconciliation.expert_confirmation_pending`). Toute correction se fait dans le pivot JSON, puis régénération.
 
 **Statut pivot** : 0.2-reconciled · **Généré depuis** : pivot du 2026-07-11 · **Périmètre** : 32 compétences
-**État** : RECONCILED — B-0 (2026-07-11) : types d'alignement fixés par framework, cognitifs MoE alignés sur l'enum du référentiel, synthèse recalculée ; en attente de confirmation expert (reconciliation.expert_confirmation_pending).
+**État** : RECONCILED + décisions fondateur 2026-07-12 — B-0 (2026-07-11) : types d'alignement fixés par framework, cognitifs MoE alignés sur l'enum du référentiel, synthèse recalculée ; en attente de confirmation expert (reconciliation.expert_confirmation_pending).
 
 **Frameworks mappés** :
 - **CCSS_M** — *Common Core State Standards for Mathematics*, NGA Center / CCSSO, édition 2010. Grain : coded standards (e.g. 4.NF.A.1). Stabilité : stable, non modifié depuis 2010.
@@ -44,7 +44,7 @@ Types et confiances **par framework** (réconciliation B-0 du 2026-07-11).
 | 10 | `NF.NUMBER_LINE_PLACE` | Place a fraction on a number line | 3 | 3.NF.A.2 | EXACT (H) | Y3 fractions as numbers | PARTIAL (H) | CCSS : 2a, 2b ; CCSS très number-line-centric. · UK : UK l'implique sans l'isoler. Réconcilié (R1) : UK Y3 englobe le placement sur la droite numérique dans 'fractions as numbers' sans l'isoler (note : 'UK l'implique sans l'isoler') — correspondance implicite, pas directe ⇒ PARTIAL ; l'EXACT de la ligne venait de CCSS 3.NF.A.2 explicite. |
 | 11 | `NF.SUB_SAME_NOSIMP` | Subtract fractions, same denominator, no simplifying | 3 | 4.NF.B.3a | ENRICH (H) | Y3 add/subtract same denom | EXACT (H) | CCSS : Même décalage de grade que #4. |
 | 12 | `NF.UNIT_FRACTION` | Understand a unit fraction 1/b | 3 | 3.NF.A.1 | EXACT (H) | Y3 unit fractions | EXACT (H) |  |
-| 13 | `NF.WHOLE_AS_FRACTION` | Recognize whole numbers as fractions (b/b=1) | 3 | 3.NF.A.3c | EXACT (H) | Y3-Y5 whole numbers as fractions (implicite) | PARTIAL (H) | CCSS : CCSS explicite. · UK : Réconcilié (R1) : le descriptor UK est lui-même marqué 'implicite' (Y3–Y5) — b/b=1 n'est nommé par aucun objectif UK NC ⇒ PARTIAL au grain honnête ; l'EXACT de la ligne venait de CCSS 3.NF.A.3c explicite. |
+| 13 | `NF.WHOLE_AS_FRACTION` | Recognize whole numbers as fractions (b/b=1) | 3 | 3.NF.A.3c | EXACT (H) | Y3-Y5 whole numbers as fractions (implicite) | PREREQ (H) | CCSS : CCSS explicite. · UK : Décision fondateur 2026-07-12 (Q1, cohérence #30/#31) : PARTIAL → PREREQ. Descriptor UK 'implicite', b/b=1 non nommé → 'building block for'. À confirmer didacticien. |
 | 14 | `NS.MULT_FACTS` | Recall multiplication facts to 100 | 3 | 3.OA.C.7 | EXACT (H) | Y4 tables up to 12x12 | EXACT (H) | UK : UK formalise la mémorisation en Y4. |
 | 15 | `NF.ADD_SAME_IMPROPER` | Add fractions, same denominator, improper result | 4 | 4.NF.B.3b, 4.NF.B.3c | EXACT (H) | Y5 statements > 1 as mixed number | EXACT (H) | UK : UK : ex. 2/5+4/5=6/5=1 1/5 (Y5). |
 | 16 | `NF.ADD_SAME_SIMPLIFY` | Add fractions, same denominator, simplify result | 4 | 4.NF.B.3a, 4.NF.A.1 | PARTIAL (H) | Y5-Y6 add same denom + simplify | PARTIAL (H) | CCSS : Simplification non exigée par CCSS — cf. #23. · UK : La simplification relève de Y6. |
@@ -61,8 +61,8 @@ Types et confiances **par framework** (réconciliation B-0 du 2026-07-11).
 | 27 | `NS.LCM` | Find least common multiple | 4 | 6.NS.B.4 | ENRICH (H) | Y6 common multiples | ENRICH (H) | CCSS : CCSS formalise le PPCM en G6 ; Atlas G4 (prérequis dénom. commun). |
 | 28 | `NF.ADD_MIXED` | Add mixed numbers | 5 | 4.NF.B.3c, 5.NF.A.1 | EXACT (H) | Y6 add mixed numbers | EXACT (H) | CCSS : 4.NF.B.3c (like) / 5.NF.A.1 (unlike). |
 | 29 | `NF.ADD_UNLIKE_FULL` | Add fractions, unlike denom, with simplify + improper | 5 | 5.NF.A.1 | EXACT (H) | Y6 add/subtract different denom & mixed | EXACT (H) |  |
-| 30 | `NF.IMPROPER_TO_MIXED` | Convert improper fraction to mixed number | 5 | 4.NF.B.3b | PARTIAL (H) | Y5 convert one form to the other | EXACT (H) | CCSS : Implicite. Réconcilié (R1) : note 'Implicite' — CCSS ne nomme pas la conversion impropre→mixte comme standard dédié ; sous-geste de 4.NF.B.3b ⇒ PARTIAL (alternative PREREQ possible, à trancher par l'expert) ; l'EXACT de la ligne venait d'UK Y5 explicite. · UK : UK Y5 explicite. |
-| 31 | `NF.MIXED_TO_IMPROPER` | Convert mixed number to improper fraction | 5 | 4.NF.B.3c, 5.NF.A.1 | PARTIAL (H) | Y5 convert one form to the other | EXACT (H) | CCSS : Implicite. Réconcilié (R1) : idem #30 — conversion mixte→impropre implicite dans 4.NF.B.3c / 5.NF.A.1, pas de standard dédié ⇒ PARTIAL (alternative PREREQ possible) ; l'EXACT de la ligne venait d'UK Y5 explicite. · UK : UK Y5 explicite. |
+| 30 | `NF.IMPROPER_TO_MIXED` | Convert improper fraction to mixed number | 5 | 4.NF.B.3b | PREREQ (H) | Y5 convert one form to the other | EXACT (H) | CCSS : Implicite. Décision fondateur 2026-07-12 (Q1) : PARTIAL → PREREQ. CCSS ne nomme jamais la conversion (implicite dans 4.NF.B.3b/c) → 'building block for', plus défendable que 'covers part of'. À confirmer didacticien. · UK : UK Y5 explicite. |
+| 31 | `NF.MIXED_TO_IMPROPER` | Convert mixed number to improper fraction | 5 | 4.NF.B.3c, 5.NF.A.1 | PREREQ (H) | Y5 convert one form to the other | EXACT (H) | CCSS : Implicite. Décision fondateur 2026-07-12 (Q1) : PARTIAL → PREREQ. CCSS ne nomme jamais la conversion (implicite dans 4.NF.B.3b/c) → 'building block for', plus défendable que 'covers part of'. À confirmer didacticien. · UK : UK Y5 explicite. |
 | 32 | `NF.SUB_UNLIKE_LCM` | Subtract fractions, unlike denom, requiring LCM | 5 | 5.NF.A.1 | EXACT (H) | Y6 add/subtract different denom | EXACT (H) |  |
 
 ---
@@ -71,8 +71,8 @@ Types et confiances **par framework** (réconciliation B-0 du 2026-07-11).
 
 | Framework | Compétences couvertes | EXACT | PARTIAL | BROADER | PREREQ | ENRICH |
 |---|---|---|---|---|---|---|
-| **CCSS_M** | 32 / 32 | 18 | 6 | 0 | 0 | 8 |
-| **UK_NC** | 32 / 32 | 22 | 7 | 0 | 0 | 3 |
+| **CCSS_M** | 32 / 32 | 18 | 4 | 0 | 2 | 8 |
+| **UK_NC** | 32 / 32 | 22 | 6 | 0 | 1 | 3 |
 | **MOE_UAE** | 32 / 32 | grain domaine + grade-band (pas de types — cognitif : Applying 18 · Knowing 2 · Reasoning 12) | | | | |
 
 ---

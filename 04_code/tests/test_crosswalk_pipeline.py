@@ -57,8 +57,9 @@ def test_validator_synthesis_is_computed():
     # R4 : le recalcul reproduit exactement le computed_synthesis du fichier
     pivot = load_pivot()
     synth = compute_synthesis(pivot["mappings"])
-    assert synth["CCSS_M"] == {"covered": 32, "EXACT": 18, "PARTIAL": 6, "ENRICH": 8}
-    assert synth["UK_NC"] == {"covered": 32, "EXACT": 22, "PARTIAL": 7, "ENRICH": 3}
+    # depuis la décision Q1 (2026-07-12) : #30/#31 [ccss] et #13 [uk] PARTIAL → PREREQ
+    assert synth["CCSS_M"] == {"covered": 32, "EXACT": 18, "PARTIAL": 4, "ENRICH": 8, "PREREQ": 2}
+    assert synth["UK_NC"] == {"covered": 32, "EXACT": 22, "PARTIAL": 6, "PREREQ": 1, "ENRICH": 3}
     assert synth["MOE_UAE"]["cognitive_levels"] == {"Applying": 18, "Knowing": 2, "Reasoning": 12}
 
 
@@ -218,12 +219,12 @@ def test_seed_upsert_propagates_pivot_mutation():
     seed_referentiel(s)
     seed_crosswalk(s)
 
-    # mute un type d'alignement dans le pivot (cf. question ouverte #30/#31 : PARTIAL→PREREQ)
+    # mute un type d'alignement dans le pivot (#30 est PREREQ depuis Q1 → on le repasse PARTIAL)
     pivot = _pivot()
     m30 = next(m for m in pivot["mappings"]
                if m["competency_code"] == "MATH.G5.NF.IMPROPER_TO_MIXED")
-    assert m30["ccss_m"]["alignment"] == "PARTIAL"
-    m30["ccss_m"]["alignment"] = "PREREQ"
+    assert m30["ccss_m"]["alignment"] == "PREREQ"
+    m30["ccss_m"]["alignment"] = "PARTIAL"
     # la synthèse est recalculée (sinon R4 refuse le pivot)
     from scripts.validate_crosswalk import compute_synthesis
     pivot["reconciliation"]["computed_synthesis"] = {
@@ -234,7 +235,7 @@ def test_seed_upsert_propagates_pivot_mutation():
     r = seed_crosswalk(s, pivot)
     assert r["maps_updated"] >= 1 and r["maps_created"] == 0
 
-    # la base reflète bien PREREQ, pas l'ancien PARTIAL
+    # la base reflète bien la mutation PARTIAL, pas l'ancien PREREQ
     comp = s.execute(select(Competency).where(
         Competency.code == "MATH.G5.NF.IMPROPER_TO_MIXED")).scalar_one()
     types = {
@@ -247,7 +248,7 @@ def test_seed_upsert_propagates_pivot_mutation():
                    CurriculumStandard.framework == CurriculumFramework.CCSS_M)
         )
     }
-    assert AlignmentType.PREREQ in types and AlignmentType.PARTIAL not in types
+    assert AlignmentType.PARTIAL in types and AlignmentType.PREREQ not in types
 
 
 def test_seed_uk_range_maps_to_two_standards():

@@ -8,6 +8,32 @@
 
 ---
 
+## ✅ RÉSULTAT — décisions prises par Nassim le 2026-07-12
+
+| # | Décision | Choix retenu | vs reco |
+|---|---|---|---|
+| **D-A1** | Périmètre d'extension | **Décimaux G4–G5 d'abord** | = reco |
+| **D-A2** | Experts externes | **Didacticien SEUL** (pas d'enseignant EAU) | ⚠️ diverge |
+| **D-A3** | G6–G8 | **Chantier distinct** (nouveaux types d'items) | = reco |
+| **D-B1** | Framework par défaut | **ATLAS neutre**, choix explicite à l'onboarding | = reco |
+| **D-B2** | Codes côté parent | **Non en v1** | = reco |
+| **D-B3** | Bi-curriculum | **Un framework par tenant** en v1 | = reco |
+| **D-B4** | DataModel §7 | **Amendé** (alignment_type + confidence) — déjà appliqué, confirmé par défaut | = reco |
+| **D-B5** | Couverture programme au rapport | **Oui dès la v1** (findings CRIT-1/MAJ-1 déjà corrigés) | = reco |
+| **D-C1** | Calibration | **Faite en INTERNE** (pas vendue comme livrable pilote) | ⚠️ diverge |
+| **D-C2** | Elo ou IRT | **Elo en prod, IRT offline** | = reco |
+| **D-C3** | Référence externe | **Examens internes + ancrage TIMSS** (vérifier licence IEA) | = reco |
+| **D-C4** | Revue psychométricien externe | **NON** (pas de revue externe avant lancement) | ⚠️ diverge |
+
+**Conséquences des 3 divergences (assumées) :**
+- **D-C1 interne + D-C4 non** → l'étude de calibration n'a plus AUCUN filet externe (ni engagement/revenu école, ni relecture métier). La qualité du protocole interne (C2/C3) devient le seul garde-fou ; les claims restent à l'**étage 0/1** de `Politique-Claims-Mesure.md` (« échelle interne », jamais « validée par un tiers »).
+- **D-A2 didacticien seul** → la double lecture des décimaux (`Double-Lecture-Decimaux.md`) devient une **lecture experte simple** (doc à adapter) ; la confiance MoE reste **M** faute de canal enseignant EAU vers le document d'outcomes du ministère (livrable B7 sans porteur).
+- **D-C3** → à inscrire au contrat de pilote : accès aux **examens internes** de l'école + calendrier ; et **vérifier la licence IEA/TIMSS dès maintenant**, pas au moment de la collecte.
+
+*Enregistré par assistant le 2026-07-12 sur décisions directes de Nassim. Les checkboxes §1–§3 ci-dessous sont conservées comme trace du raisonnement ; ce bloc fait foi.*
+
+---
+
 ## 0. Mode d'emploi
 
 - **Ordre de lecture** : §1 (les 2 confirmations d'un trait) → §2 (les 4 décisions bloquantes) → §3 (les 6 décisions non bloquantes).

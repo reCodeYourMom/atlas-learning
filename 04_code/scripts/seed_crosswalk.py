@@ -95,8 +95,13 @@ def _standard_defs(pivot: dict) -> dict:
     return defs
 
 
+def _enrich_kind(entry: dict) -> Optional[str]:
+    """enrich_kind du pivot, seulement si la ligne est ENRICH (M-4)."""
+    return entry.get("enrich_kind") if entry.get("alignment") == "ENRICH" else None
+
+
 def _map_defs(pivot: dict) -> list:
-    """[(competency_code, framework, standard_code, alignment, confidence, note)]."""
+    """[(competency_code, framework, standard_code, alignment, confidence, note, enrich_kind)]."""
     rows = []
     for m in pivot["mappings"]:
         code = m["competency_code"]
@@ -104,12 +109,12 @@ def _map_defs(pivot: dict) -> list:
         for std in ccss["standards"]:
             rows.append((code, CurriculumFramework.CCSS_M, std,
                          AlignmentType(ccss["alignment"]),
-                         MappingConfidence(ccss["confidence"]), _note(ccss)))
+                         MappingConfidence(ccss["confidence"]), _note(ccss), _enrich_kind(ccss)))
         uk = m["uk_nc"]
         for year in uk["years"].split("-"):
             rows.append((code, CurriculumFramework.UK_NC, year,
                          AlignmentType(uk["alignment"]),
-                         MappingConfidence(uk["confidence"]), _note(uk)))
+                         MappingConfidence(uk["confidence"]), _note(uk), _enrich_kind(uk)))
         moe = m["moe_uae"]
         # confiance MoE = min(domaine, grade_band) : M tant que les bands sont estimés (B7)
         conf = m["moe_uae"]["confidence"]
@@ -119,7 +124,7 @@ def _map_defs(pivot: dict) -> list:
         if moe.get("cognitive_note"):
             note_parts.append(moe["cognitive_note"])
         rows.append((code, CurriculumFramework.MOE_UAE, moe_composed_key(moe),
-                     AlignmentType.BROADER, confidence, " ; ".join(note_parts)))
+                     AlignmentType.BROADER, confidence, " ; ".join(note_parts), None))
     return rows
 
 
@@ -167,7 +172,7 @@ def seed(session: Session, pivot: dict | None = None) -> dict:
     }
     m_created = m_updated = 0
     map_rows = _map_defs(pivot)
-    for comp_code, framework, std_code, alignment, confidence, note in map_rows:
+    for comp_code, framework, std_code, alignment, confidence, note, enrich_kind in map_rows:
         key = (comp_by_code[comp_code], existing_std[(framework, std_code)].id)
         mm = existing_maps.get(key)
         if mm is None:
@@ -177,17 +182,20 @@ def seed(session: Session, pivot: dict | None = None) -> dict:
                 alignment_type=alignment,
                 confidence=confidence,
                 note=note,
+                enrich_kind=enrich_kind,
                 weight_source=WeightSource.EXPERT,
                 weight_version=1,
             )
             session.add(mm)
             existing_maps[key] = mm
             m_created += 1
-        elif (mm.alignment_type, mm.confidence, mm.note) != (alignment, confidence, note):
+        elif (mm.alignment_type, mm.confidence, mm.note, mm.enrich_kind) != \
+                (alignment, confidence, note, enrich_kind):
             # un changement de type d'alignement incrémente la version (traçabilité B6)
             if mm.alignment_type != alignment:
                 mm.weight_version += 1
-            mm.alignment_type, mm.confidence, mm.note = alignment, confidence, note
+            mm.alignment_type, mm.confidence, mm.note, mm.enrich_kind = \
+                alignment, confidence, note, enrich_kind
             m_updated += 1
     session.commit()
 

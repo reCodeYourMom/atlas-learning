@@ -431,12 +431,22 @@ def admin_set_integration(body: IntegrationIn,
 
 def _require_curriculum_admin_org(ctx: UserContext, s: Session) -> Organization:
     """Console curriculum (B3) : réglage d'AFFICHAGE pédagogique — ouvert au ped admin
-    en plus de l'IT admin (même résolution de tenant que _require_it_admin_org)."""
+    en plus de l'IT admin (même résolution de tenant que _require_it_admin_org).
+
+    Le ped admin est scopé par `school_id` (jamais `organization_id` — aucun chemin de
+    provisioning ne le pose, cf. provision_demo.py/provision_prod_tenant.py/rostering) :
+    on résout donc l'org via ses écoles quand `org_ids` est vide, sinon ce rôle ne peut
+    jamais atteindre cette console malgré le docstring qui le promet.
+    """
     if not ctx.has(Role.IT_ADMIN, Role.PED_ADMIN, Role.SUPER_ADMIN):
         raise HTTPException(status_code=403, detail="rôle admin requis")
-    if len(ctx.org_ids) != 1:
+    org_ids = set(ctx.org_ids)
+    if not org_ids and ctx.school_ids:
+        schools = s.execute(select(School).where(School.id.in_(ctx.school_ids))).scalars().all()
+        org_ids = {sch.organization_id for sch in schools if sch.organization_id}
+    if len(org_ids) != 1:
         raise HTTPException(status_code=400, detail="organisation non résolue")
-    org = s.get(Organization, next(iter(ctx.org_ids)))
+    org = s.get(Organization, next(iter(org_ids)))
     if org is None or org.deleted_at is not None:
         raise HTTPException(status_code=404, detail="organisation introuvable")
     return org

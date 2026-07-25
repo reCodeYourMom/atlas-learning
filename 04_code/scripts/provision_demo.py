@@ -72,10 +72,13 @@ def _provision_tenant(s):
 
 def _activate_bank(s):
     items = s.execute(select(Item).where(Item.deleted_at.is_(None))).scalars().all()
-    activated = skipped_active = skipped_no_ar = 0
+    activated = skipped_active = skipped_no_ar = skipped_quarantined = 0
     for it in items:
         if it.status == ItemStatus.ACTIVE:
             skipped_active += 1
+            continue
+        if it.status == ItemStatus.QUARANTINED:
+            skipped_quarantined += 1
             continue
         if not it.content_ar:
             skipped_no_ar += 1
@@ -84,19 +87,22 @@ def _activate_bank(s):
         validate_arabic(s, it, linguist="demo-provision")
         promote_to_active(s, it, reviewer="demo-provision")
         activated += 1
-    return activated, skipped_active, skipped_no_ar
+    return activated, skipped_active, skipped_no_ar, skipped_quarantined
 
 
 def main():
     engine = make_engine()
     with SessionLocal(bind=engine) as s:
         admin, teacher, cls, students, created = _provision_tenant(s)
-        activated, already, no_ar = _activate_bank(s)
+        activated, already, no_ar, quarantined = _activate_bank(s)
 
     print("=" * 60)
     print("DÉMO PROVISIONNÉE" if created else "DÉMO DÉJÀ EN PLACE (comptes réutilisés)")
     print("=" * 60)
-    print(f"Banque : {activated} items activés, {already} déjà actifs, {no_ar} sans AR (ignorés)")
+    print(
+        f"Banque : {activated} items activés, {already} déjà actifs, "
+        f"{no_ar} sans AR (ignorés), {quarantined} quarantinés (ignorés)"
+    )
     print(f"\nClasse : {cls.name}  (id={cls.id})")
     print(f"Élèves : {len(students)}  (ex. student_id={students[0].id if students else 'N/A'})")
     print("\nComptes (auth via SSO — pas de mot de passe) :")

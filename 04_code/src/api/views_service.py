@@ -238,10 +238,15 @@ def class_gaps(s: Session, classroom_id: uuid.UUID, *, crosswalk=_UNRESOLVED) ->
             select(StudentCompetencyAbility).where(StudentCompetencyAbility.student_id == sid)
         ).scalars().all()
         abilities = {code_of[r.competency_id]: r.ability_elo for r in rows if r.competency_id in code_of}
+        # Une cause racine compte UNE fois par élève (plusieurs lacunes peuvent y remonter,
+        # cf. class_digest ci-dessous) : sinon student_count explose au-delà de n_students.
+        seen_roots: dict = {}
         for d in diagnose_all(abilities, hard):
-            counter[d.root_cause] += 1
-            example_gap.setdefault(d.root_cause, (d.gap, d.is_self))
-            example_expl.setdefault(d.root_cause, d.explanation)
+            seen_roots.setdefault(d.root_cause, (d.gap, d.is_self, d.explanation))
+        for rc, (gap_code, is_self, explanation) in seen_roots.items():
+            counter[rc] += 1
+            example_gap.setdefault(rc, (gap_code, is_self))
+            example_expl.setdefault(rc, explanation)
 
     out = []
     for rc, n in counter.most_common():

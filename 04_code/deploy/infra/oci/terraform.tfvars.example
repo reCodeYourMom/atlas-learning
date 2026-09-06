@@ -16,10 +16,23 @@ ssh_ingress_cidr    = "0.0.0.0/0"             # mets "TON.IP.PUB.LIC/32" pour du
 # CMK OCI Vault pour chiffrer le boot volume à la création (données mineurs, RUNBOOK-BETA §1).
 # Créer la clé AVANT l'apply : Console → Identity & Security → Vault → Master Encryption Key.
 # Vide = clé Oracle par défaut (chiffré, mais Oracle détient la clé).
+# Pour la DÉMO (données fictives), on peut laisser vide sans conséquence.
 boot_kms_key_ocid = ""                        # "ocid1.key.oc1.me-abudhabi-1.xxxxx"
 
-app_domain  = "app.atlaslearning.ae"
-auth_domain = "auth.atlaslearning.ae"
+# =====================================================================
+# Profil de déploiement
+# =====================================================================
+# "demo" → deploy/demo : UN sous-domaine, sans Keycloak, connexion par mot de passe
+#          partagé. C'est la stack des rendez-vous écoles.
+# "prod" → deploy/prod : SSO Keycloak + TOTP, deux sous-domaines. Pour un vrai pilote.
+deploy_profile = "demo"
+
+# --- Profil demo : un seul sous-domaine ---
+demo_domain = "demo.atlaslearning.ae"
+
+# --- Profil prod uniquement (laisser vides en demo) ---
+app_domain  = ""
+auth_domain = ""
 
 # Optionnel : si renseigné, cloud-init clone et déploie tout seul.
 # Laisse vide pour copier le bundle en scp et lancer deploy.sh à la main.

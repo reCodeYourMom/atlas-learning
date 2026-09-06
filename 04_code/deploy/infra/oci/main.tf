@@ -8,7 +8,10 @@
 # =====================================================================
 
 terraform {
-  required_version = ">= 1.3"
+  # 1.4 minimum : la précondition de garde sur les domaines (variables.tf) repose sur
+  # la ressource `terraform_data`, introduite en 1.4. Sous 1.3, l'erreur serait
+  # obscure au lieu d'être un message clair.
+  required_version = ">= 1.4"
   required_providers {
     oci = {
       source  = "oracle/oci"
@@ -119,8 +122,8 @@ resource "oci_core_instance" "atlas" {
   shape               = "VM.Standard.A1.Flex"
 
   shape_config {
-    ocpus         = var.instance_ocpus       # 2 = plafond Always Free (depuis ~15/06/2026)
-    memory_in_gbs = var.instance_memory_gbs  # 12 = plafond Always Free (depuis ~15/06/2026)
+    ocpus         = var.instance_ocpus      # 2 = plafond Always Free (depuis ~15/06/2026)
+    memory_in_gbs = var.instance_memory_gbs # 12 = plafond Always Free (depuis ~15/06/2026)
   }
 
   create_vnic_details {
@@ -139,9 +142,11 @@ resource "oci_core_instance" "atlas" {
   metadata = {
     ssh_authorized_keys = file(var.ssh_public_key_path)
     user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-      app_domain  = var.app_domain
-      auth_domain = var.auth_domain
-      repo_url    = var.repo_url
+      deploy_profile = var.deploy_profile
+      demo_domain    = var.demo_domain
+      app_domain     = var.app_domain
+      auth_domain    = var.auth_domain
+      repo_url       = var.repo_url
     }))
   }
 }

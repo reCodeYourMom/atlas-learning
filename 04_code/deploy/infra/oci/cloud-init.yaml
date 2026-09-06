@@ -1,5 +1,9 @@
 #cloud-config
 # Atlas — bootstrap VM Ubuntu : Docker + (option) clone du repo + deploy.sh.
+#
+# Deux profils, choisis par la variable Terraform `deploy_profile` :
+#   demo → deploy/demo (un sous-domaine, sans Keycloak) — les rendez-vous commerciaux
+#   prod → deploy/prod (SSO Keycloak + TOTP)            — un pilote avec de vraies données
 package_update: true
 package_upgrade: false
 
@@ -12,12 +16,14 @@ write_files:
   - path: /etc/atlas.env
     permissions: "0644"
     content: |
+      DEPLOY_PROFILE=${deploy_profile}
+      DEMO_DOMAIN=${demo_domain}
       APP_DOMAIN=${app_domain}
       AUTH_DOMAIN=${auth_domain}
       REPO_URL=${repo_url}
 
 runcmd:
-  # Docker Engine + compose plugin
+  # Docker Engine + plugin compose
   - curl -fsSL https://get.docker.com | sh
   - usermod -aG docker ubuntu
   # Récupère le bundle si un repo est fourni, sinon laisse la place pour un scp.
@@ -27,12 +33,31 @@ runcmd:
     if [ -n "$REPO_URL" ]; then
       cd /home/ubuntu
       git clone "$REPO_URL" repo || true
-      # Cherche le dossier deploy/prod (compatible repo racine ou sous-dossier 04_code/)
-      D=$(find /home/ubuntu/repo -type d -path '*deploy/prod' | head -n1)
+      chown -R ubuntu:ubuntu /home/ubuntu/repo
+      # Chemin du profil (compatible repo à la racine ou sous 04_code/).
+      SOUS_DOSSIER="deploy/$DEPLOY_PROFILE"
+      D=$(find /home/ubuntu/repo -type d -path "*$SOUS_DOSSIER" | head -n1)
       if [ -n "$D" ]; then
-        chown -R ubuntu:ubuntu /home/ubuntu/repo
-        sudo -u ubuntu env APP_DOMAIN="$APP_DOMAIN" AUTH_DOMAIN="$AUTH_DOMAIN" bash -lc "cd '$D' && ./deploy.sh"
+        if [ "$DEPLOY_PROFILE" = "demo" ]; then
+          sudo -u ubuntu env DEMO_DOMAIN="$DEMO_DOMAIN" bash -lc "cd '$D' && ./deploy.sh"
+        else
+          sudo -u ubuntu env APP_DOMAIN="$APP_DOMAIN" AUTH_DOMAIN="$AUTH_DOMAIN" \
+            bash -lc "cd '$D' && ./deploy.sh"
+        fi
+      else
+        echo "[atlas] dossier $SOUS_DOSSIER introuvable dans le repo cloné." \
+          > /home/ubuntu/ATLAS-ERREUR.txt
+        chown ubuntu:ubuntu /home/ubuntu/ATLAS-ERREUR.txt
       fi
     fi
-  - echo "[atlas] cloud-init terminé. Si pas de repo_url : scp le bundle puis lance deploy.sh." > /home/ubuntu/ATLAS-READY.txt
-  - chown ubuntu:ubuntu /home/ubuntu/ATLAS-READY.txt
+  - |
+    . /etc/atlas.env
+    {
+      echo "[atlas] cloud-init terminé — profil : $DEPLOY_PROFILE"
+      if [ -z "$REPO_URL" ]; then
+        echo "Pas de repo_url : copie 04_code/ en scp, puis lance deploy/$DEPLOY_PROFILE/deploy.sh"
+      else
+        echo "Suivre le semis initial : cd repo/*/deploy/$DEPLOY_PROFILE && docker compose logs -f backend"
+      fi
+    } > /home/ubuntu/ATLAS-READY.txt
+    chown ubuntu:ubuntu /home/ubuntu/ATLAS-READY.txt

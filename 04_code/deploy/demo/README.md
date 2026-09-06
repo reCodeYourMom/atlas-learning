@@ -35,12 +35,38 @@ dig +short demo.atlaslearning.ae      # doit renvoyer l'IP de la VM
 > demande échoue **et consomme le quota Let's Encrypt** (5 échecs par heure et par domaine).
 > `deploy.sh` refuse donc de partir sur un DNS incohérent — laisse-le faire.
 
-## 2. La VM
+## 2. La VM — Oracle Cloud, région Émirats
 
-N'importe quel serveur avec Docker et les ports 80/443 ouverts. Compter **2 vCPU / 4 Go**
-(la stack en réserve ~2,5 Go). `deploy/infra/oci/` provisionne une VM Oracle Cloud gratuite
-en région Émirats — utile si la résidence des données dans le Golfe fait partie de
-l'argumentaire.
+`deploy/infra/oci/` provisionne tout (VM + réseau + déploiement) sur l'Always Free d'Oracle
+en région Émirats. Gratuit à vie, et **les données restent dans le Golfe** — ce qui se dit
+en rendez-vous.
+
+À faire une seule fois, et seulement par toi (identité) :
+
+1. **Créer le compte OCI.** ⚠ La *home region* est **irréversible** : choisir
+   `me-abudhabi-1` (UAE Central) ou `me-dubai-1`. L'Always Free n'existe que dans la home
+   region — se tromper, c'est perdre la gratuité aux Émirats.
+2. **Générer une clé API** : Console → Profil → *User settings* → *API Keys* → *Add API
+   Key*. Le bloc de configuration affiché donne `tenancy_ocid`, `user_ocid` et
+   `fingerprint`&nbsp;; la clé privée se télécharge à ce moment-là.
+
+Puis :
+
+```bash
+cd deploy/infra/oci
+cp terraform.tfvars.example terraform.tfvars   # renseigner les OCIDs, deploy_profile="demo"
+terraform init && terraform apply
+terraform output next_steps                    # l'IP et l'enregistrement DNS exact
+```
+
+> **Capacité ARM.** Le shape `VM.Standard.A1.Flex` est parfois saturé aux Émirats
+> (« out of capacity »). C'est le seul aléa réel du free tier : réessayer plus tard, ou
+> viser un autre *availability domain*. Rien à corriger dans la configuration.
+
+### Ou n'importe quelle autre VM
+
+Docker et les ports 80/443 ouverts suffisent. Compter **2 vCPU / 4 Go** (la stack en
+réserve ~2,5 Go).
 
 ```bash
 curl -fsSL https://get.docker.com | sh

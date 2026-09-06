@@ -50,16 +50,55 @@ variable "ssh_ingress_cidr" {
 }
 
 # --- Application -----------------------------------------------------
+# Deux profils de déploiement :
+#   "demo" (défaut) → deploy/demo : UN sous-domaine, sans Keycloak, connexion par mot de
+#                     passe partagé. C'est la stack des rendez-vous commerciaux.
+#   "prod"          → deploy/prod : deux sous-domaines, SSO Keycloak + TOTP. Pour un pilote
+#                     avec de vraies données d'élèves.
+variable "deploy_profile" {
+  type        = string
+  description = "\"demo\" (un sous-domaine, sans Keycloak) ou \"prod\" (SSO Keycloak)."
+  default     = "demo"
+
+  validation {
+    condition     = contains(["demo", "prod"], var.deploy_profile)
+    error_message = "deploy_profile doit valoir \"demo\" ou \"prod\"."
+  }
+}
+
+variable "demo_domain" {
+  type        = string
+  description = "Profil demo : LE sous-domaine de la démo (ex: demo.atlaslearning.ae)."
+  default     = ""
+}
+
 variable "app_domain" {
   type        = string
-  description = "Sous-domaine front+API (ex: app.tondomaine.com). Pour démarrer sans domaine : <IP>.nip.io après 1er apply."
+  description = "Profil prod : sous-domaine front+API (ex: app.tondomaine.com)."
+  default     = ""
 }
 variable "auth_domain" {
   type        = string
-  description = "Sous-domaine Keycloak (ex: auth.tondomaine.com)."
+  description = "Profil prod : sous-domaine Keycloak (ex: auth.tondomaine.com)."
+  default     = ""
 }
 variable "repo_url" {
   type        = string
   description = "URL git du repo (contenant 04_code/). Vide = cloud-init prépare Docker seulement, tu copies le bundle en scp puis lances deploy.sh."
   default     = ""
+}
+
+# Garde-fou : un profil sans son (ses) domaine(s) produirait une VM qui démarre, un Caddy
+# qui ne sait pas quel certificat demander, et une démo silencieusement inaccessible.
+resource "terraform_data" "verifie_domaines" {
+  lifecycle {
+    precondition {
+      condition = (
+        var.deploy_profile == "demo"
+        ? var.demo_domain != ""
+        : var.app_domain != "" && var.auth_domain != ""
+      )
+      error_message = "Profil \"demo\" : renseigne demo_domain. Profil \"prod\" : renseigne app_domain ET auth_domain."
+    }
+  }
 }

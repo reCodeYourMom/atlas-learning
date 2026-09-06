@@ -83,16 +83,25 @@ def pick_item(
     items: List[ItemRef],
     seen_item_ids,
 ) -> Optional[object]:
-    """Item actif de la compétence dont la difficulté est la plus proche de l'ability.
+    """Item actif JAMAIS SERVI dans cette session, de difficulté la plus proche de l'ability.
 
-    Exclut quarantined ; évite les déjà-vus tant qu'il reste des alternatives.
+    Exclut quarantined et déjà-vus. Renvoie None si la compétence est épuisée : l'appelant
+    passe alors à une autre cible, ou clôt la session proprement.
+
+    Cette fonction autorisait auparavant la répétition quand tout était vu
+    (`chosen = fresh or pool`), alors que `session_service.submit_response` REFUSE une
+    seconde réponse au même (session, item) — contrainte d'unicité en base. Les deux
+    contrats se contredisaient : dès qu'une compétence était épuisée, l'API re-servait
+    l'item déjà répondu, puis rejetait la réponse par un 409 en pleine session. Reproduit
+    et mesuré : session interrompue au 2e item. Le contrat retenu est le plus strict —
+    un item ne se répond qu'une fois par session.
     """
-    pool = [it for it in items if it.competency_id == competency_id and it.status == "active"]
+    pool = [it for it in items
+            if it.competency_id == competency_id and it.status == "active"
+            and it.item_id not in set(seen_item_ids)]
     if not pool:
         return None
-    fresh = [it for it in pool if it.item_id not in set(seen_item_ids)]
-    chosen = fresh or pool  # tout vu → on autorise la répétition
-    return min(chosen, key=lambda it: abs(it.difficulty_elo - ability)).item_id
+    return min(pool, key=lambda it: abs(it.difficulty_elo - ability)).item_id
 
 
 def select_next(
@@ -109,7 +118,13 @@ def select_next(
     session par le mécanisme d'arrêt standard (pas d'exception, pas de 500).
     """
     states_by_id = states_by_id or {c.competency_id: c for c in candidates}
-    available = {it.competency_id for it in items if it.status == "active"}
+    # « Disponible » = il reste au moins un item actif NON SERVI dans cette session. Une
+    # compétence dont tous les items ont déjà été répondus est épuisée : la retenir ferait
+    # échouer pick_item juste après, et clôturerait la session alors que d'autres cibles
+    # restent servables.
+    seen = set(seen_item_ids)
+    available = {it.competency_id for it in items
+                 if it.status == "active" and it.item_id not in seen}
     comp = pick_competency(candidates, hard_prereqs=hard_prereqs, states_by_id=states_by_id,
                            available_competency_ids=available)
     if comp is None:

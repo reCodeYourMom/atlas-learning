@@ -40,9 +40,18 @@ def test_ac3_seen_not_reselected_if_alternatives():
     assert pick_item("C", 1610.0, _items(), seen_item_ids={"i3"}) == "i2"
 
 
-def test_ac3_repeat_allowed_if_all_seen():
+def test_ac3_competence_epuisee_ne_resert_jamais_un_item_vu():
+    """Tout vu dans la compétence → None, jamais une répétition.
+
+    Ce test encodait le contrat inverse (« tout vu → on autorise la répétition »). Il
+    contredisait `session_service.submit_response`, qui refuse une seconde réponse au même
+    (session, item) — contrainte d'unicité en base. L'API re-servait donc un item déjà
+    répondu puis rejetait la réponse par un 409 en pleine session (reproduit : session
+    interrompue au 2e item). `select_next` écarte désormais les compétences épuisées et
+    passe à la cible suivante ; la session ne se clôt que si PLUS AUCUNE n'est servable.
+    """
     seen = {"i1", "i2", "i3", "i4"}
-    assert pick_item("C", 1610.0, _items(), seen) == "i3"  # tout vu → on autorise
+    assert pick_item("C", 1610.0, _items(), seen) is None
 
 
 def test_ac4_redirect_to_failed_hard_prereq():

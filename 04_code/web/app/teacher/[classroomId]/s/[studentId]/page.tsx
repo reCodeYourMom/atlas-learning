@@ -55,8 +55,13 @@ function ProfileView({ classroomId, studentId }: { classroomId: string; studentI
           {t("common.back")}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-sand-800">
-          {t("common.student")} <span className="num text-brand-700">{profile.external_ref}</span>
+          {profile.display_name || profile.external_ref}
         </h1>
+        {profile.display_name && profile.display_name !== profile.external_ref && (
+          <p className="num mt-0.5 text-xs text-sand-400" data-ltr>
+            {profile.external_ref}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

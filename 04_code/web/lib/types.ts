@@ -41,6 +41,7 @@ export interface ClassGap {
 export interface StudentRow {
   student_id: string;
   external_ref: string;
+  display_name: string;
   mean_ability: number | null;
   n_measured: number;
   n_gaps: number;
@@ -88,6 +89,7 @@ export interface Diagnosis {
 export interface StudentProfile {
   student_id: string;
   external_ref: string;
+  display_name: string;
   restitution: Restitution;
   competencies: CompetencyMastery[];
   diagnoses: Diagnosis[];
@@ -161,12 +163,26 @@ export interface SchoolOverview {
     mastery_rate: number;
     n_measured: number;
   }[];
-  classes: {
-    classroom_id: string;
-    name: string;
-    n_students: number;
-    mean_ability: number | null;
-  }[];
+  // Triées : la classe la plus en difficulté d'abord (le classement est l'information).
+  classes: ClassSummary[];
+}
+
+export interface ClassSummary {
+  classroom_id: string;
+  name: string;
+  n_students: number;
+  mean_ability: number | null;
+  mastery_rate: number | null;
+  // Domaine le plus faible de la classe — null tant qu'aucune compétence n'a 3 mesures.
+  weakest_competency: {
+    code: string;
+    label: string;
+    label_ar: string;
+    mean_ability: number;
+    mastery_rate: number;
+    n_measured: number;
+    standard?: StandardRef | null;
+  } | null;
 }
 
 export interface ArCoverage {
@@ -306,4 +322,25 @@ export interface NextItem {
   content_en?: ItemContent | null;
   content_ar?: ItemContent | null;
   was_correct?: boolean; // présent seulement après soumission d'une réponse
+  mastery?: MasteryMove; // idem : décrit la compétence qui vient d'être mesurée
+}
+
+// Déplacement de l'estimation de maîtrise provoqué par UNE réponse.
+export interface MasterySnapshot {
+  elo: number;
+  percentile: number;
+  level: string;
+  confidence: number;
+  n_direct: number;
+  mastered: boolean;
+}
+
+export interface MasteryMove {
+  competency_id: string;
+  label_en: string | null;
+  label_ar: string | null;
+  before: MasterySnapshot;
+  after: MasterySnapshot;
+  delta_elo: number;
+  crossed_mastery: boolean;
 }

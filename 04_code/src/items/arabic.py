@@ -164,7 +164,11 @@ _AR_ALLOWED_CHAR = re.compile(
     "\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069"  # controles bidi
     "0-9A-Za-z\\s"
     "\u2010-\u2015\u2026\u00A0"  # tirets, ellipse, nbsp
-    ".,:;!?%()\\[\\]{}\"'\u00AB\u00BB_+\\-\u00D7\u00F7*/=<>\u2264\u2265\u00B0"
+    # U+2212 MINUS SIGN : op\u00E9rateur math\u00E9matique l\u00E9gitime, \u00E9crit par nos propres
+    # g\u00E9n\u00E9rateurs d\u00E9terministes c\u00F4t\u00E9 EN (\u00AB What is 4/5 \u2212 1/5? \u00BB). Son absence ici
+    # rendait TOUT item de soustraction invalidable en AR \u2014 gate infranchissable,
+    # quelle que soit la route de traduction (30 items bloqu\u00E9s, mesur\u00E9).
+    ".,:;!?%()\\[\\]{}\"'\u00AB\u00BB_+\\-\u2212\u00D7\u00F7*/=<>\u2264\u2265\u00B0"
     "]"
 )
 

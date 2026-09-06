@@ -5,7 +5,8 @@ import { AppShell, useMe } from "@/components/AppShell";
 import { useLang } from "@/components/LanguageProvider";
 import { Button, Card, ErrorPanel, Spinner, cx } from "@/components/ui";
 import { api } from "@/lib/api";
-import type { ItemContent, NextItem } from "@/lib/types";
+import { MasteryMeter } from "@/components/MasteryMeter";
+import type { ItemContent, MasteryMove, NextItem } from "@/lib/types";
 
 export default function StudentPage() {
   return (
@@ -25,6 +26,8 @@ function SessionFlow() {
   const [phase, setPhase] = useState<Phase>("intro");
   const [selected, setSelected] = useState<string>("");
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
+  // Révision de l'estimation provoquée par la dernière réponse — le moment « wow ».
+  const [lastMove, setLastMove] = useState<MasteryMove | null>(null);
   const [pendingNext, setPendingNext] = useState<NextItem | null>(null);
   const [answered, setAnswered] = useState(0);
   const [skills, setSkills] = useState<Set<string>>(new Set());
@@ -67,6 +70,7 @@ function SessionFlow() {
     try {
       const res = await api.submitResponse(sessionId, item.item_id, selected, lang);
       setLastCorrect(res.was_correct ?? null);
+      setLastMove(res.mastery ?? null);
       setAnswered((n) => n + 1);
       // On garde l'item courant pour le feedback ; le payload contient déjà le SUIVANT.
       setPendingNext(res);
@@ -81,6 +85,7 @@ function SessionFlow() {
   function advance() {
     const next = pendingNext;
     setLastCorrect(null);
+    setLastMove(null);
     setPendingNext(null);
     if (next) handleNext(next);
     if (next && !next.done) setPhase("question");
@@ -128,6 +133,7 @@ function SessionFlow() {
             setSessionId(null);
             setAnswered(0);
             setSkills(new Set());
+            setLastMove(null);
             setPhase("intro");
           }}
         >
@@ -193,6 +199,13 @@ function SessionFlow() {
               className="num w-full rounded-2xl border-2 border-sand-200 px-5 py-4 text-center text-xl outline-none focus:border-brand-400"
               data-ltr
             />
+          </div>
+        )}
+
+        {/* L'estimation de maîtrise, révisée par CETTE réponse. */}
+        {showFeedback && lastMove && (
+          <div className="mt-6">
+            <MasteryMeter move={lastMove} />
           </div>
         )}
 

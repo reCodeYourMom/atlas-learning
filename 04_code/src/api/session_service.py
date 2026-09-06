@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 from src.audit import log_action
 from src.engine.selection import CompetencyState, ItemRef, select_next
 from src.engine.service import ELO_START, on_response
+from src.models.competency import Competency
+from src.restitution.diagnosis import MASTERY_ELO
+from src.restitution.scale import DEFAULT_ANCHORS, restitute
 from src.engine.stopping import StopConfig, should_stop
 from src.items.quarantine import active_pool
 from src.models.base import EdgeType, ResponseLanguage, ensure_utc, utcnow
@@ -125,6 +128,34 @@ def _build(s: Session, session: AssessmentSession):
     return candidates, states_by_id, items, hard_prereqs
 
 
+def _mastery_snapshot(s: Session, student_id, competency_id) -> dict:
+    """État de maîtrise d'UNE compétence pour cet élève, en langage de restitution.
+
+    Sert le « avant/après » d'une réponse : c'est le seul endroit du produit où
+    l'estimation de maîtrise se voit BOUGER en direct. Une compétence encore jamais
+    mesurée part de la valeur d'entrée du moteur (ELO_START), pas de zéro.
+    """
+    ability = s.execute(
+        select(StudentCompetencyAbility).where(
+            StudentCompetencyAbility.student_id == student_id,
+            StudentCompetencyAbility.competency_id == competency_id,
+        )
+    ).scalar_one_or_none()
+    elo = ability.ability_elo if ability else ELO_START
+    conf = ability.confidence if ability else 0.0
+    n_direct = ability.n_direct if ability else 0
+    r = restitute(elo, conf, DEFAULT_ANCHORS)
+    return {
+        "elo": round(elo, 1),
+        "percentile": r.percentile,
+        "level": r.level,
+        "confidence": round(conf, 3),
+        "n_direct": n_direct,
+        # Au-dessus du seuil ET réellement mesuré — même garde que les vues enseignant.
+        "mastered": n_direct > 0 and elo >= MASTERY_ELO,
+    }
+
+
 def _finish(s: Session, session: AssessmentSession, reason: str) -> dict:
     session.status = "completed"
     session.stop_reason = reason
@@ -168,13 +199,24 @@ def submit_response(
     is_correct: bool, response_time_ms: Optional[int] = None,
     config: StopConfig = StopConfig(),
 ) -> dict:
+    # Ordre des refus : du plus SPÉCIFIQUE au plus général. Les deux sortent en 409, mais
+    # ils ne disent pas la même chose au client — et « déjà répondu » est la cause réelle
+    # quand elle s'applique. Depuis que la sélection ne re-sert plus un item vu, une
+    # session peut se clore juste après le dernier item disponible : tester d'abord l'état
+    # de session faisait alors répondre « session terminée » au rejeu d'un item, masquant
+    # le double-submit. Aucun risque à inverser : les deux branches lèvent avant tout effet.
+    #
+    # Garde rapide (non atomique) : rejette le double-submit déjà commité.
+    if item_id in _seen_item_ids(s, session.id):
+        raise AlreadyAnswered(str(item_id))
     # Session terminée → refus AVANT tout effet (revue 2026-07-08) : sans cette garde,
     # un client pouvait POSTer des réponses après l'arrêt et bouger l'Elo hors flux.
     if session.status != "active":
         raise SessionCompleted(str(session.id))
-    # Garde rapide (non atomique) : rejette le double-submit déjà commité.
-    if item_id in _seen_item_ids(s, session.id):
-        raise AlreadyAnswered(str(item_id))
+    # Photo AVANT : prise ici, la seule fenêtre où l'ancienne estimation existe encore.
+    item = s.get(Item, item_id)
+    comp_id = item.competency_id if item is not None else None
+    mastery_before = _mastery_snapshot(s, session.student_id, comp_id) if comp_id else None
     # response_id déterministe : le rejeu du même (session, item) produit le même id
     # → le moteur le reconnaît et ne réapplique RIEN (plus de uuid4 neuf à chaque appel).
     response_id = uuid.uuid5(RESPONSE_ID_NAMESPACE, f"{session.id}:{item_id}")
@@ -221,4 +263,26 @@ def submit_response(
                resource_id=resp.id, details={"student_id": str(session.student_id),
                                              "item_id": str(item_id), "correct": is_correct})
     s.commit()
-    return next_item(s, session, config)
+
+    result = next_item(s, session, config)
+    # Le « avant/après » de la compétence qui vient d'être mesurée. C'est CE bloc que
+    # l'élève (et l'interlocuteur d'une démo) voit bouger à chaque réponse : sans lui,
+    # l'API ne renvoyait qu'une correction binaire, et l'adaptativité restait invisible.
+    if comp_id is not None and mastery_before is not None:
+        comp = s.get(Competency, comp_id)
+        after = _mastery_snapshot(s, session.student_id, comp_id)
+        result["mastery"] = {
+            "competency_id": str(comp_id),
+            "label_en": comp.label_en if comp else None,
+            "label_ar": comp.label_ar if comp else None,
+            "before": mastery_before,
+            "after": after,
+            "delta_elo": round(after["elo"] - mastery_before["elo"], 1),
+            # Franchissement du seuil PAR L'ESTIMATION, vers le haut. On compare les Elo,
+            # pas le drapeau `mastered` : celui-ci exige aussi n_direct > 0, si bien qu'à
+            # la toute première mesure d'une compétence il passait de False à True — même
+            # sur une réponse FAUSSE et un Elo en baisse. On annonçait un franchissement
+            # là où l'élève venait de reculer.
+            "crossed_mastery": (mastery_before["elo"] < MASTERY_ELO <= after["elo"]),
+        }
+    return result

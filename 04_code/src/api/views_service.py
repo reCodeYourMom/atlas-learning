@@ -237,7 +237,15 @@ def class_gaps(s: Session, classroom_id: uuid.UUID, *, crosswalk=_UNRESOLVED) ->
         rows = s.execute(
             select(StudentCompetencyAbility).where(StudentCompetencyAbility.student_id == sid)
         ).scalars().all()
-        abilities = {code_of[r.competency_id]: r.ability_elo for r in rows if r.competency_id in code_of}
+        # Mesures DIRECTES seulement. Une ability à n_direct == 0 n'est pas une
+        # observation : c'est une valeur poussée par propagation depuis les voisines.
+        # La retenir permettait de nommer à un professeur, en toutes lettres, une cause
+        # racine sur laquelle l'élève n'a jamais répondu à une question. C'est déjà la
+        # règle ailleurs dans la restitution (_is_mastered, lacunes émergentes de
+        # class_digest) ; cette vue était l'une des deux à ne pas l'appliquer.
+        abilities = {code_of[r.competency_id]: r.ability_elo
+                     for r in rows
+                     if r.competency_id in code_of and r.n_direct > 0}
         # Une cause racine compte UNE fois par élève (plusieurs lacunes peuvent y remonter,
         # cf. class_digest ci-dessous) : sinon student_count explose au-delà de n_students.
         seen_roots: dict = {}
@@ -340,7 +348,7 @@ def class_digest(s: Session, classroom_id: uuid.UUID, *, days: int = 7,
 def school_overview(s: Session, school_id: uuid.UUID) -> dict:
     """Agrégat établissement (T5.5) : maîtrise par compétence et par classe. SANS PII élève."""
     crosswalk = _curriculum_context(s, school_id)   # B4 : colonne « standard » si vue ≠ ATLAS
-    code_of, label_of, _, _ = _code_maps(s)
+    code_of, label_of, _, label_ar_of = _code_maps(s)
     students = s.execute(
         select(Student).where(Student.school_id == school_id, Student.deleted_at.is_(None))
     ).scalars().all()
@@ -386,12 +394,40 @@ def school_overview(s: Session, school_id: uuid.UUID) -> dict:
     for cls in s.execute(
         select(Classroom).where(Classroom.school_id == school_id, Classroom.deleted_at.is_(None))
     ).scalars():
-        vals = [r.ability_elo for r in rows if cls.id in classes_of.get(r.student_id, ())]
+        mine = [r for r in rows if cls.id in classes_of.get(r.student_id, ())]
+        vals = [r.ability_elo for r in mine]
+        # Domaine le plus faible de la classe. Sans lui, la vue école ne disait QUE
+        # « cette classe est plus basse » : un chiffre, jamais une cause. C'est le nom du
+        # domaine qui transforme un tableau de bord en point de départ de conversation.
+        # Seuil de 3 mesures : en dessous, une compétence à un seul élève sortirait en tête
+        # du classement sur un accident.
+        par_comp = {}
+        for r in mine:
+            par_comp.setdefault(r.competency_id, []).append(r.ability_elo)
+        eligibles = {cid: v for cid, v in par_comp.items() if len(v) >= 3}
+        weakest = None
+        if eligibles:
+            cid, v = min(eligibles.items(), key=lambda kv: sum(kv[1]) / len(kv[1]))
+            code = code_of.get(cid, str(cid))
+            weakest = _attach_standard(
+                {"code": code, "label": label_of.get(code, ""),
+                 "label_ar": label_ar_of.get(code, ""),
+                 "mean_ability": round(mean(v), 1),
+                 "mastery_rate": round(sum(1 for x in v if x >= MASTERY_ELO) / len(v), 2),
+                 "n_measured": len(v)},
+                code, crosswalk)
         classes.append({
             "classroom_id": str(cls.id), "name": cls.name,
             "n_students": sum(1 for st in students if cls.id in classes_of.get(st.id, ())),
             "mean_ability": round(mean(vals), 1) if vals else None,
+            # Taux de maîtrise : bien plus lisible que l'Elo moyen pour séparer les classes
+            # (les Elo se tassent autour de 1500, les taux non).
+            "mastery_rate": (round(sum(1 for x in vals if x >= MASTERY_ELO) / len(vals), 2)
+                             if vals else None),
+            "weakest_competency": weakest,
         })
+    # La classe la plus en difficulté d'abord : le classement EST l'information.
+    classes.sort(key=lambda c: (c["mastery_rate"] is None, c["mastery_rate"] or 0))
 
     return {"school_id": str(school_id), "n_students": len(students),
             "competencies": competencies, "classes": classes}
@@ -511,6 +547,9 @@ def list_students(s: Session, classroom_id: uuid.UUID) -> List[dict]:
         n_gaps = sum(1 for a in measured if a.ability_elo < MASTERY_ELO)
         out.append({
             "student_id": str(st.id), "external_ref": st.external_ref or "—",
+            # Nom affiché : ce qu'un professeur reconnaît. `external_ref` (identifiant
+            # annuaire) reste servi pour les écoles qui préfèrent l'anonymat en classe.
+            "display_name": st.display_name or st.external_ref or "—",
             "mean_ability": mean_elo, "n_measured": len(measured), "n_gaps": n_gaps,
         })
     out.sort(key=lambda x: (x["mean_ability"] is None, x["mean_ability"] or 0))
@@ -528,8 +567,15 @@ def student_profile(s: Session, student_id: uuid.UUID) -> dict:
         select(StudentCompetencyAbility).where(StudentCompetencyAbility.student_id == student_id)
     ).scalars().all()
 
+    # Mesures DIRECTES seulement — même règle que class_gaps et tutor_explanation.
+    # Une ability à n_direct == 0 est une valeur propagée depuis les compétences
+    # voisines, pas une observation : la retenir permettait d'afficher comme cause
+    # racine une compétence jamais testée chez cet élève. La liste `competencies`
+    # ci-dessous continue, elle, de montrer TOUTES les lignes (avec leur drapeau
+    # `measured`) : on masque la cause non observée, pas l'estimation.
     abilities_by_code = {code_of[r.competency_id]: r.ability_elo
-                         for r in rows if r.competency_id in code_of}
+                         for r in rows
+                         if r.competency_id in code_of and r.n_direct > 0}
 
     competencies = []
     for r in rows:
@@ -568,6 +614,7 @@ def student_profile(s: Session, student_id: uuid.UUID) -> dict:
     return {
         "student_id": str(student_id),
         "external_ref": (st.external_ref if st and st.external_ref else "—"),
+        "display_name": ((st.display_name or st.external_ref) if st else None) or "—",
         "restitution": restitution,
         "competencies": competencies,
         "diagnoses": diagnoses,
@@ -676,7 +723,11 @@ def tutor_explanation(s: Session, student_id: uuid.UUID, gap_code: str) -> dict:
     rows = s.execute(
         select(StudentCompetencyAbility).where(StudentCompetencyAbility.student_id == student_id)
     ).scalars().all()
-    abilities = {code_of[r.competency_id]: r.ability_elo for r in rows if r.competency_id in code_of}
+    # Mesures DIRECTES seulement — même règle que class_gaps et student_profile :
+    # le tuteur explique une lacune observée, jamais une lacune seulement inférée.
+    abilities = {code_of[r.competency_id]: r.ability_elo
+                 for r in rows
+                 if r.competency_id in code_of and r.n_direct > 0}
     if gap_code not in abilities or abilities[gap_code] >= MASTERY_ELO:
         # rien à expliquer : compétence non mesurée, inconnue, ou déjà maîtrisée
         return {"available": False, "competency_code": gap_code}

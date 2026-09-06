@@ -6,6 +6,7 @@ Aucune donnée élève envoyée à un service externe.
 """
 from __future__ import annotations
 
+import hmac
 import os
 import secrets
 import uuid
@@ -148,6 +149,52 @@ def _dev_login_enabled() -> bool:
     return (not is_prod) and os.environ.get("OIDC_DEV_LOGIN") == "1"
 
 
+# ---------- connexion DÉMO (mot de passe partagé, hors production) ----------
+#
+# L'auth du produit est SSO uniquement (migration 0013_drop_direct_auth) : plus aucun mot
+# de passe en base, la MFA est portée par l'IdP. Excellent en production — impraticable
+# pour une démo commerciale, où il faut ouvrir cinq comptes en visio sans monter un
+# Keycloak et sans exposer un endpoint curl.
+#
+# D'où ce mode explicite : UN secret partagé, lu dans l'environnement (jamais en base,
+# jamais versionné), qui ouvre une session sur un compte EXISTANT du jeu de démo. Trois
+# verrous : `DEMO_LOGIN_PASSWORD` doit être posé, `ATLAS_ENV` ne doit pas être une prod,
+# et l'email doit déjà exister. Comparaison à temps constant, et journalisation de chaque
+# tentative — un mot de passe partagé reste un mot de passe.
+
+def _demo_login_password() -> Optional[str]:
+    is_prod = os.environ.get("ATLAS_ENV", "dev").lower() in ("prod", "production")
+    pwd = os.environ.get("DEMO_LOGIN_PASSWORD") or ""
+    return None if (is_prod or not pwd) else pwd
+
+
+class DemoLoginIn(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/demo/login")
+def demo_login(body: DemoLoginIn, s: Session = Depends(get_db)):
+    """Connexion de démonstration : email d'un compte de démo + mot de passe partagé."""
+    expected = _demo_login_password()
+    if expected is None:
+        raise HTTPException(status_code=404, detail="indisponible")
+    email = body.email.strip().lower()
+    user = s.execute(
+        select(AppUser).where(AppUser.email == email, AppUser.deleted_at.is_(None))
+    ).scalar_one_or_none()
+    # compare_digest : le temps de réponse ne doit pas dépendre du préfixe correct.
+    ok = hmac.compare_digest(body.password or "", expected)
+    if user is None or not user.is_active or not ok:
+        # Message unique : ne dit jamais si c'est l'email ou le mot de passe qui est faux.
+        log_action(s, action="auth.demo_login_failed", details={"email": email})
+        s.commit()
+        raise HTTPException(status_code=401, detail="identifiants invalides")
+    log_action(s, action="auth.demo_login", user_id=user.id)
+    s.commit()
+    return {"token": make_token(str(user.id)), "user_id": str(user.id)}
+
+
 class DevLoginIn(BaseModel):
     email: str
 
@@ -186,8 +233,13 @@ def _oidc_redirect_uri(provider_key: str) -> str:
 
 @app.get("/auth/providers")
 def auth_providers():
-    """Providers SSO activés — pilote l'affichage des boutons côté front."""
-    return {"providers": oidc.enabled_providers()}
+    """Providers SSO activés — pilote l'affichage des boutons côté front.
+
+    `demo_login` indique au front qu'il doit AUSSI proposer le formulaire de démo. Sans
+    cette annonce, l'écran de connexion resterait vide quand aucun IdP n'est configuré.
+    """
+    return {"providers": oidc.enabled_providers(),
+            "demo_login": _demo_login_password() is not None}
 
 
 @app.get("/oauth/{provider_key}/start")

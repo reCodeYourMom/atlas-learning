@@ -103,6 +103,12 @@ def test_rejeu_garde_contournee_reste_idempotent():
     # (AlreadyAnswered, comme le rejeu tardif) — sémantique déterministe,
     # zéro entrée AuditLog dupliquée (cf. session_service.submit_response).
     s, school, student, a, b, item = _setup()
+    # Second item sur la même compétence : sans lui, la banque est épuisée après la
+    # première réponse et la session se clôt légitimement (« no_items ») — le refus
+    # « session terminée » masquerait alors le rejeu qu'on veut précisément observer.
+    s.add(Item(competency_id=b.id, answer_format=AnswerFormat.MCQ, difficulty_prior=1500.0,
+               status=ItemStatus.ACTIVE, content_en=CONTENT))
+    s.commit()
     sess = start_session(s, student_id=student.id, school_id=school.id)
     submit_response(s, sess, item_id=item.id, is_correct=True)
     ab1 = s.get(StudentCompetencyAbility, (student.id, b.id)).ability_elo

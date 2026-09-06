@@ -46,6 +46,9 @@ class Student(Base):
         ForeignKey("app_user.id", ondelete="SET NULL"), default=None, index=True
     )
     external_ref: Mapped[Optional[str]] = mapped_column(String, default=None)
+    # Nom affiché (rostering ou saisie école). `external_ref` reste l'ancre d'identité
+    # durable : un élève peut être renommé sans changer d'identité côté annuaire.
+    display_name: Mapped[Optional[str]] = mapped_column(String, default=None)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=None)
     # Legal hold individuel : suspend la purge de rétention de CET élève (soft-deleted mais
     # sous obligation de conservation/litige) tant qu'il est posé (cf. purge_retention).

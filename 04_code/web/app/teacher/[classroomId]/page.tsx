@@ -87,8 +87,10 @@ function ClassView({ classroomId }: { classroomId: string }) {
                 <tbody className="divide-y divide-sand-100">
                   {students.map((s) => (
                     <tr key={s.student_id} className="hover:bg-sand-25">
-                      <td className="px-3 py-2.5 font-medium text-sand-800" data-ltr>
-                        {s.external_ref}
+                      {/* Le nom affiché ; `external_ref` reste le repli pour les écoles
+                          qui préfèrent des identifiants anonymes en classe. */}
+                      <td className="px-3 py-2.5 font-medium text-sand-800">
+                        {s.display_name || s.external_ref}
                       </td>
                       <td className="px-2 py-2.5 text-center">
                         <span className="num text-sand-600">{eloToLevel(s.mean_ability)}</span>

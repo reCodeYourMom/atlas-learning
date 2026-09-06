@@ -89,6 +89,13 @@ def _take(items: List[dict], n: int) -> List[dict]:
 
 # ===================== Nombres & faits =====================
 
+def _ordinal_suffix(n: int) -> str:
+    """Suffixe ordinal anglais correct (1st, 2nd, 3rd, 4th…) — lu à l'écran par l'élève."""
+    if 10 <= n % 100 <= 20:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
 @_register("MATH.G3.NS.MULT_FACTS")
 def _mult_facts() -> List[dict]:
     out = []
@@ -150,7 +157,8 @@ def _fraction_as_part() -> List[dict]:
     data = [(3, 4), (2, 5), (5, 6), (3, 8), (2, 3), (7, 10), (4, 5), (5, 12), (3, 5), (1, 6)]
     for i, (a, b) in enumerate(data):
         out.append(_mcq(
-            f"A whole is divided into {b} equal parts and {a} parts are taken. "
+            f"A whole is divided into {b} equal parts and {a} "
+            f"{'part is' if a == 1 else 'parts are'} taken. "
             "What fraction is taken?", raw(a, b),
             [raw(b, a), raw(a, b - a), raw(a + 1, b)], i))
     return out
@@ -185,7 +193,7 @@ def _number_line() -> List[dict]:
     for i, (a, b) in enumerate(data):
         out.append(_mcq(
             f"A number line from 0 to 1 is split into {b} equal intervals. "
-            f"What fraction is at the {a}{'st' if a==1 else 'th'} tick after 0?",
+            f"What fraction is at the {a}{_ordinal_suffix(a)} tick after 0?",
             raw(a, b), [raw(a, b + 1), raw(a - 1, b), raw(b, a)], i))
     return out
 
@@ -221,7 +229,8 @@ def _name_fraction_visual() -> List[dict]:
     data = [(3, 4), (1, 2), (2, 3), (3, 8), (5, 6), (1, 4), (2, 5), (4, 6), (3, 5), (5, 8)]
     for i, (a, b) in enumerate(data):
         out.append(_mcq(
-            f"A bar is divided into {b} equal parts and {a} parts are shaded. "
+            f"A bar is divided into {b} equal parts and {a} "
+            f"{'part is' if a == 1 else 'parts are'} shaded. "
             "What fraction is shaded?", raw(a, b),
             [raw(b - a, b), raw(b, a), raw(a, b - a)], i))
     return out

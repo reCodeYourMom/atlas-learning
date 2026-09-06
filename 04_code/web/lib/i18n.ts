@@ -213,6 +213,16 @@ export const DICT = {
     ar: "عمل رائع اليوم. هذا ما تدرّبت عليه.",
   },
   "session.done.practised": { en: "Skills you practised", ar: "مهارات تدرّبت عليها" },
+
+  // — Session : l'estimation de maîtrise qui bouge sous les yeux de l'élève —
+  "mastery.measuring": { en: "Measuring", ar: "نقيس الآن" },
+  "mastery.estimate": { en: "Mastery estimate", ar: "تقدير الإتقان" },
+  "mastery.up": { en: "Estimate went up", ar: "ارتفع التقدير" },
+  "mastery.down": { en: "Estimate went down", ar: "انخفض التقدير" },
+  "mastery.steady": { en: "Estimate held steady", ar: "بقي التقدير ثابتًا" },
+  "mastery.crossed": { en: "Mastery reached", ar: "تمّ بلوغ الإتقان" },
+  "mastery.confidence": { en: "Confidence", ar: "الثقة" },
+  "mastery.answers": { en: "answers on this skill", ar: "إجابات على هذه المهارة" },
   "session.done.again": { en: "Practise again", ar: "تدرّب مرة أخرى" },
 
   // — Admin: school —
@@ -228,6 +238,22 @@ export const DICT = {
   "school.byskill": { en: "Mastery by skill (weakest first)", ar: "الإتقان حسب المهارة (الأضعف أولًا)" },
   "school.byclass": { en: "By class", ar: "حسب الصف" },
   "school.masteryrate": { en: "mastery rate", ar: "معدّل الإتقان" },
+  "login.demo.email": { en: "Demo account email", ar: "بريد حساب العرض" },
+  "login.demo.password": { en: "Demo password", ar: "كلمة مرور العرض" },
+  "login.demo.submit": { en: "Sign in", ar: "تسجيل الدخول" },
+  "login.demo.failed": {
+    en: "Those credentials didn't work. Check the email and password and try again.",
+    ar: "لم تنجح بيانات الدخول. تحقّق من البريد وكلمة المرور وحاول مجددًا.",
+  },
+  "school.byclass.hint": {
+    en: "Ranked by mastery — the class needing attention first.",
+    ar: "مرتّبة حسب الإتقان — الصف الذي يحتاج الانتباه أولًا.",
+  },
+  "school.focus.eyebrow": { en: "Needs attention", ar: "يحتاج إلى انتباه" },
+  "school.focus.mastered": { en: "of skills mastered", ar: "من المهارات مُتقَنة" },
+  "school.focus.weakest": { en: "Weakest domain:", ar: "أضعف مجال:" },
+  "school.focus.open": { en: "Open the class", ar: "افتح الصف" },
+  "school.class.weakest": { en: "Weakest:", ar: "الأضعف:" },
 
   // — Admin: classes & licences —
   "classes.title": { en: "Classes & licences", ar: "الصفوف والتراخيص" },

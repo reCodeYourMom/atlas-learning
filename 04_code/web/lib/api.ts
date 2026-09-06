@@ -102,7 +102,15 @@ export interface Guardian {
 
 export const api = {
   // Providers SSO activés côté serveur (pour afficher les bons boutons).
-  authProviders: () => request<{ providers: string[] }>("/auth/providers"),
+  authProviders: () =>
+    request<{ providers: string[]; demo_login: boolean }>("/auth/providers"),
+
+  // Connexion de démonstration (hors production, cf. /demo/login côté API).
+  demoLogin: (email: string, password: string) =>
+    request<{ token: string; user_id: string }>("/demo/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
 
   // — Console IT admin : rostering —
   adminIntegration: () => request<Integration>("/admin/integration"),

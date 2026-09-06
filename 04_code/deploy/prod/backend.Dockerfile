@@ -19,6 +19,9 @@ COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY scripts ./scripts
+# Le référentiel de compétences, lu par seed_referentiel.py (data/referentiel_fractions.json).
+# Sans lui, le seed échoue dans le conteneur : la base démarre vide et rien n'est servable.
+COPY data ./data
 COPY deploy/prod/entrypoint-backend.sh /usr/local/bin/entrypoint-backend.sh
 RUN chmod +x /usr/local/bin/entrypoint-backend.sh
 

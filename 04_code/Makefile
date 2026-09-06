@@ -32,7 +32,7 @@ demo-reset:
 	@echo "▸ version arabe déterministe (aucun appel LLM)"
 	@$(PY) scripts/translate_bank_ar_deterministic.py
 	@echo "▸ activation de la banque"
-	@$(PY) scripts/provision_demo.py | grep -E "^Banque"
+	@$(PY) scripts/provision_demo.py --bank-only
 	@echo "▸ école, 3 classes, 75 élèves, 6 semaines d'historique"
 	@$(PY) scripts/seed_demo_school.py
 

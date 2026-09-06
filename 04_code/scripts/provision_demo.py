@@ -91,8 +91,22 @@ def _activate_bank(s):
 
 
 def main():
+    import argparse
+    p = argparse.ArgumentParser()
+    # La démo commerciale a sa PROPRE école (seed_demo_school.py). Elle n'a besoin ici que
+    # de l'activation de la banque : créer en plus « Demo School » et ses 12 élèves
+    # laisserait un établissement fantôme dans la base montrée à un directeur.
+    p.add_argument("--bank-only", action="store_true",
+                   help="active la banque sans créer le tenant de démo")
+    args = p.parse_args()
+
     engine = make_engine()
     with SessionLocal(bind=engine) as s:
+        if args.bank_only:
+            activated, already, no_ar, quarantined = _activate_bank(s)
+            print(f"Banque : {activated} items activés, {already} déjà actifs, "
+                  f"{no_ar} sans AR (ignorés), {quarantined} quarantinés (ignorés)")
+            return
         admin, teacher, cls, students, created = _provision_tenant(s)
         activated, already, no_ar, quarantined = _activate_bank(s)
 

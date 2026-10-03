@@ -58,13 +58,15 @@ def _setup():
     s.add_all([pending, done]); s.flush()
 
     ped = AppUser(email="ped@a.io"); teacher = AppUser(email="t@a.io")
-    s.add_all([ped, teacher]); s.flush()
+    ling = AppUser(email="ling@atlas.io")
+    s.add_all([ped, teacher, ling]); s.flush()
     s.add_all([
         Membership(user_id=ped.id, role=Role.PED_ADMIN, school_id=sa_.id),
         Membership(user_id=teacher.id, role=Role.TEACHER, school_id=sa_.id),
+        Membership(user_id=ling.id, role=Role.LINGUIST),   # staff Atlas global
     ])
     s.commit()
-    ids = dict(ped=ped.id, teacher=teacher.id, pending=pending.id, done=done.id)
+    ids = dict(ped=ped.id, teacher=teacher.id, ling=ling.id, pending=pending.id, done=done.id)
     app.dependency_overrides[get_db] = lambda: s
     app.dependency_overrides[get_llm_client] = lambda: FakeLLMClient([_AR_JSON])
     return TestClient(app), ids, s
@@ -96,7 +98,7 @@ def test_pending_worklist_excludes_validated():
 def test_propose_then_validate_flow():
     client, ids, s = _setup()
     # 1) PROPOSE : la machine (Groq/ALLaM) propose l'AR, ar_validated reste False
-    r = client.post(f"/admin/arabic/{ids['pending']}/propose", headers=_auth(ids["ped"]))
+    r = client.post(f"/admin/arabic/{ids['pending']}/propose", headers=_auth(ids["ling"]))
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["content_ar"]["stem"].startswith("ما")  # AR proposé
@@ -104,12 +106,12 @@ def test_propose_then_validate_flow():
     assert body["math_preserved"] is True               # chiffres préservés EN↔AR
 
     # 2) VALIDATE : le linguiste valide → ar_validated + statut linguist_validated
-    r2 = client.post(f"/admin/arabic/{ids['pending']}/validate", headers=_auth(ids["ped"]))
+    r2 = client.post(f"/admin/arabic/{ids['pending']}/validate", headers=_auth(ids["ling"]))
     assert r2.status_code == 200, r2.text
     assert r2.json()["ar_validated"] is True
     assert r2.json()["status"] == ItemStatus.LINGUIST_VALIDATED.value
 
-    # la couverture validée a progressé
+    # la couverture validée a progressé — lisible par l'admin d'école (surface de preuve)
     cov = client.get("/admin/arabic/coverage", headers=_auth(ids["ped"])).json()
     assert cov["ar_validated"] == 2
     app.dependency_overrides.clear()
@@ -118,7 +120,7 @@ def test_propose_then_validate_flow():
 def test_validate_blocked_without_arabic():
     client, ids, s = _setup()
     # pas de content_ar proposé → validation refusée (gate)
-    r = client.post(f"/admin/arabic/{ids['pending']}/validate", headers=_auth(ids["ped"]))
+    r = client.post(f"/admin/arabic/{ids['pending']}/validate", headers=_auth(ids["ling"]))
     assert r.status_code == 400
     app.dependency_overrides.clear()
 
@@ -129,6 +131,14 @@ def test_rbac_linguist_only():
     assert client.get("/admin/arabic/coverage").status_code == 401
     assert client.post(f"/admin/arabic/{ids['pending']}/propose",
                        headers=_auth(ids["teacher"])).status_code == 403
+    # Un admin d'ÉTABLISSEMENT (client) lit la couverture mais ne franchit JAMAIS le gate
+    # G3 : proposer/valider l'arabe est un acte de staff Atlas (revue 2026-09-20).
+    assert client.get("/admin/arabic/coverage", headers=_auth(ids["ped"])).status_code == 200
+    assert client.get("/admin/arabic/pending", headers=_auth(ids["ped"])).status_code == 403
+    assert client.post(f"/admin/arabic/{ids['pending']}/propose",
+                       headers=_auth(ids["ped"])).status_code == 403
+    assert client.post(f"/admin/arabic/{ids['pending']}/validate",
+                       headers=_auth(ids["ped"])).status_code == 403
     app.dependency_overrides.clear()
 
 

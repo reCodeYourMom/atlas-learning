@@ -1,11 +1,22 @@
-"""CLI minimale de revue d'items (T2.3).
+"""CLI de revue d'items (T2.3) — AUTHENTIFIÉE et AUDITÉE (revue 2026-09-20).
 
 Sous-commandes :
-  list                          liste les items à revoir (ai_generated)
-  generate --code CODE [-n N]   génère via Groq + insère en ai_generated
-  approve  ID  --reviewer NAME  ai_generated → human_reviewed
-  reject   ID  --reviewer NAME --reason "..."   soft delete + raison
-  review       --reviewer NAME  boucle interactive (a/r/s/q)
+  list                                  items à revoir (ai_generated)
+  generate --code CODE [-n N]           génère via Groq + insère en ai_generated
+  approve  ID  --reviewer EMAIL         ai_generated → human_reviewed
+  reject   ID  --reviewer EMAIL --reason "..."   soft delete + raison
+  review       --reviewer EMAIL         boucle interactive (a/r/s/q)
+  translate ID --by EMAIL               propose l'AR (ALLaM) — repose ar_validated=False
+  validate-ar ID --linguist EMAIL       human_reviewed → linguist_validated (gate G3)
+  ar-pending [--limit N]                file AR en attente
+  activate  ID|--all-validated --reviewer EMAIL   linguist_validated → active (pool servi)
+  release   ID --reviewer EMAIL --reason "..."    quarantined → active (réhabilitation)
+
+Identité : `--reviewer` / `--linguist` / `--by` sont l'EMAIL d'un compte existant portant
+le rôle requis (content_reviewer ou super_admin pour la revue EN et l'activation ;
+linguist ou super_admin pour l'arabe). Un texte libre est refusé : la trace en
+`provenance` ET dans `audit_log` (user_id) pointe vers une personne identifiée.
+Onboarding : `scripts/onboard_linguist.py --email ... [--role content_reviewer]`.
 
 Cible = DATABASE_URL (SQLite dev par défaut). Pré-requis : alembic upgrade head.
 """
@@ -20,10 +31,42 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import select
 
+from src.audit import log_action
 from src.db import SessionLocal, make_engine
-from src.items.review import approve, insert_generated_items, list_pending, reject
+from src.items.review import (
+    approve, insert_generated_items, list_pending, promote, promote_to_active, reject,
+)
+from src.models.base import ItemStatus, Role
 from src.models.competency import Competency
 from src.models.item import Item
+from src.models.org import AppUser, Membership
+
+CONTENT_ROLES = (Role.CONTENT_REVIEWER, Role.SUPER_ADMIN)
+ARABIC_ROLES = (Role.LINGUIST, Role.SUPER_ADMIN)
+
+
+def resolve_actor(s, email: str, roles) -> AppUser:
+    """Email → compte ACTIF portant l'un des rôles. Sort en erreur sinon (pas de texte libre)."""
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        print(f"Identité requise : un EMAIL de compte (reçu {email!r}). "
+              f"Rôles acceptés : {', '.join(r.value for r in roles)}.")
+        sys.exit(2)
+    user = s.execute(select(AppUser).where(AppUser.email == email)).scalar_one_or_none()
+    if user is None or user.deleted_at is not None or not user.is_active:
+        print(f"Compte {email} inconnu ou inactif."); sys.exit(2)
+    ok = s.execute(select(Membership).where(Membership.user_id == user.id,
+                                            Membership.role.in_(list(roles)))).first()
+    if ok is None:
+        print(f"{email} n'a aucun des rôles requis ({', '.join(r.value for r in roles)}). "
+              "Onboarding : scripts/onboard_linguist.py --email ... --role <rôle>")
+        sys.exit(2)
+    return user
+
+
+def _audit(s, action: str, actor: AppUser, item: Item, **details) -> None:
+    log_action(s, action=action, user_id=actor.id, resource_type="item", resource_id=item.id,
+               details={"actor": actor.email, "status": item.status.value, **details})
 
 
 def _fmt(item: Item) -> str:
@@ -66,13 +109,48 @@ def _get(s, item_id: str) -> Item:
 
 
 def cmd_approve(s, args) -> None:
-    approve(s, _get(s, args.id), reviewer=args.reviewer)
+    actor = resolve_actor(s, args.reviewer, CONTENT_ROLES)
+    item = approve(s, _get(s, args.id), reviewer=actor.email)
+    _audit(s, "item.approve", actor, item); s.commit()
     print("Approuvé → human_reviewed.")
 
 
 def cmd_reject(s, args) -> None:
-    reject(s, _get(s, args.id), reviewer=args.reviewer, reason=args.reason)
+    actor = resolve_actor(s, args.reviewer, CONTENT_ROLES)
+    item = reject(s, _get(s, args.id), reviewer=actor.email, reason=args.reason)
+    _audit(s, "item.reject", actor, item, reason=args.reason); s.commit()
     print("Rejeté (soft delete).")
+
+
+def cmd_activate(s, args) -> None:
+    """linguist_validated → active. Le SEUL point d'entrée de production vers le pool servi."""
+    actor = resolve_actor(s, args.reviewer, CONTENT_ROLES)
+    if args.all_validated:
+        items = s.execute(select(Item).where(Item.status == ItemStatus.LINGUIST_VALIDATED,
+                                             Item.deleted_at.is_(None))).scalars().all()
+    elif args.id:
+        items = [_get(s, args.id)]
+    else:
+        print("Préciser un ID ou --all-validated."); sys.exit(2)
+    n = 0
+    for it in items:
+        promote_to_active(s, it, reviewer=actor.email)
+        _audit(s, "item.activate", actor, it); n += 1
+    s.commit()
+    print(f"{n} item(s) activé(s) → pool servi.")
+
+
+def cmd_release(s, args) -> None:
+    """quarantined → active, avec raison. Réhabilitation tracée (jusqu'ici sans procédure)."""
+    actor = resolve_actor(s, args.reviewer, CONTENT_ROLES)
+    item = _get(s, args.id)
+    if item.status != ItemStatus.QUARANTINED:
+        print(f"L'item est {item.status.value}, pas quarantined."); sys.exit(1)
+    promote(s, item, ItemStatus.ACTIVE, reviewer=actor.email)
+    prov = dict(item.provenance or {}); prov.update(released=True, release_reason=args.reason)
+    item.provenance = prov
+    _audit(s, "item.release", actor, item, reason=args.reason); s.commit()
+    print("Réhabilité → active.")
 
 
 def cmd_translate(s, args) -> None:
@@ -81,22 +159,23 @@ def cmd_translate(s, args) -> None:
     from src.llm.client import GroqClient
     from src.models.base import AnswerFormat
 
+    actor = resolve_actor(s, args.by, ARABIC_ROLES)
     item = _get(s, args.id)
     ar = translate_to_arabic(item.content_en, GroqClient(model=ALLAM_MODEL),
                              answer_format=AnswerFormat.MCQ)
-    set_arabic(s, item, ar, by=args.by)
+    set_arabic(s, item, ar, by=actor.email)
+    _audit(s, "item.ar_proposed", actor, item); s.commit()
     print(f"AR proposé (ALLaM) pour {item.id} :")
     import json as _j
     print(_j.dumps(ar, indent=2, ensure_ascii=False))
 
 
 def cmd_validate_ar(s, args) -> None:
-    from src.audit import log_action
     from src.items.review import validate_arabic
+    actor = resolve_actor(s, args.linguist, ARABIC_ROLES)
     item = _get(s, args.id)
-    validate_arabic(s, item, linguist=args.linguist)
-    log_action(s, action="item.ar_validated", resource_type="item", resource_id=item.id,
-               details={"linguist": args.linguist})
+    validate_arabic(s, item, linguist=actor.email)
+    _audit(s, "item.ar_validated", actor, item)
     s.commit()
     print("AR validé → linguist_validated (éligible à active).")
 
@@ -115,6 +194,7 @@ def cmd_ar_pending(s, args) -> None:
 
 
 def cmd_review(s, args) -> None:
+    actor = resolve_actor(s, args.reviewer, CONTENT_ROLES)
     pending = list_pending(s)
     if not pending:
         print("Aucun item à revoir."); return
@@ -124,10 +204,13 @@ def cmd_review(s, args) -> None:
         if choice == "q":
             break
         if choice == "a":
-            approve(s, it, reviewer=args.reviewer); print("  → human_reviewed")
+            approve(s, it, reviewer=actor.email); _audit(s, "item.approve", actor, it); s.commit()
+            print("  → human_reviewed")
         elif choice == "r":
             reason = input("  Raison du rejet : ").strip()
-            reject(s, it, reviewer=args.reviewer, reason=reason); print("  → rejeté")
+            reject(s, it, reviewer=actor.email, reason=reason)
+            _audit(s, "item.reject", actor, it, reason=reason); s.commit()
+            print("  → rejeté")
         else:
             print("  (sauté)")
 
@@ -158,6 +241,13 @@ def main() -> None:
 
     ap = sub.add_parser("ar-pending"); ap.add_argument("--limit", type=int, default=20)
     ap.set_defaults(fn=cmd_ar_pending)
+
+    ac = sub.add_parser("activate"); ac.add_argument("id", nargs="?")
+    ac.add_argument("--all-validated", action="store_true")
+    ac.add_argument("--reviewer", required=True); ac.set_defaults(fn=cmd_activate)
+
+    rl = sub.add_parser("release"); rl.add_argument("id"); rl.add_argument("--reviewer", required=True)
+    rl.add_argument("--reason", required=True); rl.set_defaults(fn=cmd_release)
 
     args = p.parse_args()
     with SessionLocal(bind=make_engine()) as s:

@@ -243,7 +243,7 @@ La couche générique (`difficulty_from_score`, `weighted_score`, modèle `Item`
 | S3 | **Profondeur de chaîne** | Documenter la plus longue chaîne HARD du domaine. Longue chaîne = pouvoir diagnostique concentré mais propagation fragile (1 saut ne remonte qu'un cran) | Lister la chaîne nœud par nœud dans le dossier de revue |
 | S4 | **Racines** | Tout nœud non-racine a ≥ 1 arête entrante. Les **racines de sous-domaine** sont explicites, documentées, avec leur prérequis futur nommé | Lister les nœuds sans arête entrante ; chacun est soit une racine assumée, soit une erreur |
 | S5 | **Ponts inter-domaines** | Tout nouveau domaine doit se relier au graphe existant (sinon la propagation ne circule pas entre domaines). Les codes cibles des ponts sont **vérifiés contre la base** (pas de code inventé) | Chaque code de pont existe en base (`competency.code`) ; les ponts passent le test HARD/SOFT de A1.3 |
-| S6 | **Bornes de poids** | HARD ∈ [0.65, 0.90] (plancher méthodologique E4), SOFT ∈ (0, 0.70] | Scan automatique du JSON |
+| S6 | **Bornes de poids** | HARD ∈ [0.65, 0.90] (plancher méthodologique E4), SOFT ∈ (0, 0.70] | Scan automatique du JSON — `scripts/validate_referentiel.py` (erreur bloquante) |
 
 ### Exemples
 
@@ -324,6 +324,6 @@ Pour chaque nœud, cocher les 6 points ; un seul échec = retour en rédaction.
 - [ ] Avertissement « priors experts, non mesurés » inscrit dans le livrable.
 - [ ] Dossier de revue préparé : chaînes, médianes, répartition cognitive, points d'arbitrage pré-identifiés.
 
-**Après revue** : arbitrages journalisés → corrections → re-validation DAG → seed idempotent en base (gate G4 du Lot A) → simulation cohorte (gate G5, `simulate_cohort.py` une fois paramétré — errata E10). Les priors restent `weight_source=expert` jusqu'au Lot C.
+**Après revue** : arbitrages journalisés → corrections dans le JSON → `scripts/validate_referentiel.py` (contrôles A1.7 : erreurs bloquantes S1/S6/nommage/enums, avertissements S2/E4/N5/A1.5 à reporter ici) → `"meta": {"status": "active"}` posé dans le fichier **seulement une fois le gate A1.8 franchi** (sans lui, le seed écrit `draft`) → seed **upsert** en base (`scripts/seed_referentiel.py --referentiel …` : corrections propagées, `weight_version` incrémenté à chaque poids re-fixé, jamais de rétrogradation de statut) → `scripts/replay_measures.py --execute` si des mesures existent déjà (les abilities et la propagation sont recalculées à graphe courant) (gate G4 du Lot A) → simulation cohorte (gate G5, `simulate_cohort.py` une fois paramétré — errata E10). Les priors restent `weight_source=expert` jusqu'au Lot C.
 
 *Fin du document normatif. Toute dérogation à une règle de ce document se journalise dans le registre d'arbitrage et se reporte dans la version suivante de la méthodologie.*

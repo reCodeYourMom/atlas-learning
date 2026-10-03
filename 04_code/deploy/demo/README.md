@@ -99,10 +99,13 @@ Reconstruit l'école — élèves, réponses, mesures, diagnostics — en ~35 s.
 la banque d'items ne sont pas retouchés : ce sont des invariants, un rendez-vous ne les
 salit pas.
 
-## 5. Les 5 comptes
+## 5. Les comptes
 
 Même mot de passe pour tous, affiché par `deploy.sh` et conservé dans `.env` sur la VM
-(jamais versionné).
+(jamais versionné). Les cinq premiers font le parcours vendu ; les trois suivants existent
+pour qu'aucun écran du produit ne soit inatteignable si la question vient (revue
+2026-09-20 : parent, IT admin et linguiste n'étaient pas semés, et leurs liens magiques
+partent dans le vide sans SMTP).
 
 | Compte | Ce qu'il ouvre |
 |---|---|
@@ -111,6 +114,13 @@ Même mot de passe pour tous, affiché par `deploy.sh` et conservé dans `.env` 
 | `teacher.a@alnoor.demo` | Grade 4 — A, le contraste |
 | `teacher.b@alnoor.demo` | Grade 4 — B |
 | `student049@alnoor.demo` | Session live — étape 5 |
+| `parent@alnoor.demo` | Trajectoire de l'élève vitrine, lecture seule (aucune session possible) |
+| `it.admin@alnoor.demo` | Console IT : checklist, annuaire, sync, audit, export |
+| `linguist@alnoor.demo` | File de validation arabe (back-office staff Atlas) |
+
+La session dure 4 h (`AUTH_SESSION_TTL_S`) : un rendez-vous ne se termine pas par une
+déconnexion en plein partage d'écran. Dix mots de passe faux en dix minutes bloquent
+l'IP et l'email dix minutes (429) — le mot de passe est partagé, pas public.
 
 ## Ce que cette stack n'est pas
 

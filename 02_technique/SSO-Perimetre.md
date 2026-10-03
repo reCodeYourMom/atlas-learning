@@ -13,7 +13,7 @@ Document destiné à la conversation DSI. Répond point par point au retour :
 |---|---|---|
 | **OIDC réel avec mon IdP** | ✅ livré | Microsoft Entra ID + Google Workspace + **UAE PASS** (SSO national, public + privé) + IdP OIDC générique. Flux Authorization Code, **ID token validé cryptographiquement** (JWKS) pour les IdP conformes. |
 | **Pas de MFA maison** | ✅ supprimé | Plus aucune MFA applicative. **MFA déléguée à l'IdP.** |
-| **Pas de comptes directs** | ✅ supprimé | Plus de login mot de passe. Auth **100 % IdP**. |
+| **Pas de comptes directs** | ✅ supprimé en prod | Plus de login mot de passe en production. Auth **100 % IdP**. *Exception explicite, hors prod uniquement* : `/demo/login` (mot de passe partagé de la stack de démo, 404 si `ATLAS_ENV=prod`, anti-bruteforce, audité — §3). |
 | **Roster sync standard, pas un cron maison** | ✅ livré | Connecteurs **OneRoster 1.1/1.2 (REST + CSV)** et **Wonde**, derrière une abstraction commune. |
 
 ## 1. OIDC réel — identité prouvée par le ID token (`src/rbac/oidc.py`)
@@ -76,17 +76,32 @@ gouvernance des facteurs, côté établissement.
 - Le modèle `app_user` ne stocke **plus** `password_hash`, `totp_secret`, `mfa_enabled`
   (migration `0013_drop_direct_auth`, réversible). L'identité durable est ancrée sur
   `external_ref` (id immuable IdP/annuaire), jamais l'email.
-- **Deux accès sans mot de passe, par liens magiques signés** (HMAC, usage cloisonné) :
+- **Trois accès sans mot de passe, par liens magiques signés** (HMAC, usage cloisonné,
+  **à usage unique** — jti consommé atomiquement, `src/rbac/single_use.py`) :
   - **Parents** (hors Workspace scolaire) : `/parent/request-link` → `/parent/login`.
   - **Super-admin Atlas** (équipe éditeur) : `/admin/request-link` → `/admin/login`. Ils ne
     peuvent pas dépendre de l'IdP d'un *client* ; lien magique court (30 min), à usage
     unique, réservé aux `SUPER_ADMIN` (rôle revérifié à la connexion).
-- **Dev/démo/tests** sans IdP externe : simulateur SSO `/dev/login`, **fermé par défaut** et
+  - **Linguiste Atlas** (staff global, back-office `/linguist/*`) : `/linguist/request-link`
+    → `/linguist/login` ; bootstrap out-of-band par `scripts/onboard_linguist.py`.
+- **Dev/tests** sans IdP externe : simulateur SSO `/dev/login`, **fermé par défaut** et
   **en prod** (exige `OIDC_DEV_LOGIN=1` ET `ATLAS_ENV` non-prod). Aucune surface en production.
+- **Démo commerciale** (`deploy/demo/`, sans Keycloak) : `/demo/login`, **un** mot de passe
+  partagé lu dans l'environnement (`DEMO_LOGIN_PASSWORD`), ouvrant une session sur un compte
+  **existant** du jeu de démo. Trois verrous (secret posé, `ATLAS_ENV` non-prod, compte
+  actif), comparaison à temps constant, message d'erreur unique, **10 échecs / 10 min par
+  IP et par email → 429**, chaque tentative auditée. Session de 4 h en démo
+  (`AUTH_SESSION_TTL_S`), 1 h en prod. Cette stack n'est pas destinée à des données réelles.
 
 ## 4. RBAC & isolation tenant (inchangé, déjà en place)
-- **RBAC 6 rôles** vérifié côté serveur (`src/rbac/authz.py`) : super admin, admin IT,
-  admin pédagogique, enseignant, parent, élève. Isolation tenant (école/classe/enfant).
+- **RBAC 8 rôles** vérifié côté serveur (`src/rbac/authz.py`) : 6 rôles tenant — super admin,
+  admin IT, admin pédagogique, enseignant, parent, élève — plus 2 rôles de **staff Atlas
+  global**, non tenant-scopés : **linguiste** (validation de l'arabe de la banque) et
+  **content reviewer** (revue pédagogique EN, activation, sortie de quarantaine — CLI
+  `scripts/review_items.py`). Isolation tenant (école/classe/enfant).
+- **Lecture ≠ écriture** : le parent VOIT son enfant (`can_access_student`) mais ne peut ni
+  ouvrir une session ni répondre à sa place (`can_act_for_student`) ni gérer les tuteurs
+  (`can_manage_student`). Le référentiel (`/competencies`) est réservé au staff.
 - `school_id` sur toute donnée élève (response, ability, session) — intégré au schéma.
 
 ## 5. Roster sync standard — OneRoster + Wonde (pas un cron maison)

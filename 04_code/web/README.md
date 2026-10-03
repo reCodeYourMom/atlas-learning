@@ -22,14 +22,17 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-### Comptes démo (mot de passe `demo1234`)
-| Rôle | Email | MFA |
-|---|---|---|
-| Enseignant | `prof@demo.atlas` | oui — `python ../scripts/mfa.py <teacher_id>` |
-| Admin pédagogique | `admin@demo.atlas` | oui |
-| Élève | `eleve1@demo.atlas` … `eleve12@…` | non |
+### Comptes démo
 
-> Les codes MFA tournent toutes les 30 s. Recalcule avec `scripts/mfa.py`.
+Plus de mot de passe ni de MFA applicatifs (migration `0013_drop_direct_auth`, MFA déléguée à
+l'IdP). En local, deux façons d'ouvrir une session sur un compte existant :
+
+- `OIDC_DEV_LOGIN=1` côté API → `POST /dev/login {"email": …}` (simulateur SSO, dev/tests) ;
+- `DEMO_LOGIN_PASSWORD=…` côté API → formulaire de la page `/login` (mode démo, 404 en prod).
+
+Les comptes du jeu de démo (`make demo-reset` dans `04_code/`) : `director@alnoor.demo`,
+`teacher.{a,b,c}@alnoor.demo`, `student001..075@alnoor.demo`, `parent@alnoor.demo`,
+`it.admin@alnoor.demo`, `linguist@alnoor.demo` — voir `deploy/demo/README.md` §5.
 
 ## Écrans (10, par persona)
 | # | Écran | Route | Persona | Priorité |

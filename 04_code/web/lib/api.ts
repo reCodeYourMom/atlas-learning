@@ -3,7 +3,6 @@
 
 import type {
   ArCoverage,
-  ArItem,
   ClassDigest,
   ClassGap,
   CurriculumSettings,
@@ -210,14 +209,10 @@ export const api = {
   schoolProof: (schoolId: string) =>
     request<ProofSurfaces>(`/schools/${schoolId}/proof`),
 
-  // — Console linguiste : descente de l'arabe (Mouvement 02) —
+  // — Couverture arabe de la banque (surface de preuve, lecture seule pour un admin) —
+  // La proposition/validation AR (gate G3) vit dans le back-office linguiste ci-dessous :
+  // c'est un acte de staff Atlas, jamais d'un admin d'établissement.
   arCoverage: () => request<ArCoverage>("/admin/arabic/coverage"),
-  arPending: () =>
-    request<{ items: ArItem[]; coverage: ArCoverage }>("/admin/arabic/pending"),
-  arPropose: (itemId: string) =>
-    request<ArItem>(`/admin/arabic/${itemId}/propose`, { method: "POST" }),
-  arValidate: (itemId: string) =>
-    request<ArItem>(`/admin/arabic/${itemId}/validate`, { method: "POST" }),
 
   // — Back-office linguiste (persona dédié) : file de validation AR —
   linguistQueue: () => request<LinguistQueue>("/linguist/queue"),

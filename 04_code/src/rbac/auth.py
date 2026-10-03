@@ -42,9 +42,31 @@ def _sign(payload: bytes) -> str:
     return f"{body}.{sig}"
 
 
-def make_token(user_id: str, *, purpose: str = "session", ttl_s: int = 3600,
+DEFAULT_SESSION_TTL_S = 3600
+
+
+def session_ttl_s() -> int:
+    """Durée d'un jeton de session. `AUTH_SESSION_TTL_S` (secondes) la surcharge.
+
+    1 h par défaut (prod). La stack de démo la porte à 4 h : un rendez-vous de 60-90 min
+    ne doit pas se terminer par une déconnexion brutale en plein écran partagé, et le
+    front n'a pas de renouvellement de jeton (choix assumé : pas de refresh token).
+    Borné à [5 min, 12 h] pour qu'une valeur aberrante ne rende pas un jeton éternel.
+    """
+    raw = os.environ.get("AUTH_SESSION_TTL_S")
+    if not raw:
+        return DEFAULT_SESSION_TTL_S
+    try:
+        return max(300, min(int(raw), 12 * 3600))
+    except ValueError:
+        return DEFAULT_SESSION_TTL_S
+
+
+def make_token(user_id: str, *, purpose: str = "session", ttl_s: Optional[int] = None,
                now: float = None) -> str:
     now = int(now if now is not None else time.time())
+    if ttl_s is None:
+        ttl_s = session_ttl_s() if purpose == "session" else DEFAULT_SESSION_TTL_S
     return _sign(f"{user_id}:{purpose}:{now + ttl_s}".encode())
 
 

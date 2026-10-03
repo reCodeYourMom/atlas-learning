@@ -63,10 +63,12 @@ Distinct des personas. Cette matrice est la base du modèle d'autorisation et de
 |---|---|
 | **Super admin** | Accès illimité (Atlas / éditeur). |
 | **Admin IT** | SSO, autorisations, sécurité globale. Gate d'achat. |
-| **Admin pédagogique** | Gestion des licences dans les classes, curriculums, assignations pédagogiques, analytics établissement. |
+| **Admin pédagogique** | Curriculums, assignations pédagogiques, analytics établissement, couverture AR (lecture). *Les sièges (licences) sont posés par le super admin, pas par l'école.* |
 | **Enseignant** | Assignations pédagogiques, corrections, analytics de ses classes. |
 | **Parent** | Lecture seule : analytics et activités de son enfant (ne réalise aucune activité). |
 | **Élève** | Activités pédagogiques. |
+| **Linguiste** *(staff Atlas, global)* | Relit, corrige et valide l'arabe de la banque d'items (gate G3). Jamais un compte client. |
+| **Content reviewer** *(staff Atlas, global)* | Revue pédagogique EN, activation d'un item dans le pool servi, réhabilitation après quarantaine. Identifié et audité. |
 
 ### Personas (pilotent la roadmap features)
 
@@ -112,7 +114,7 @@ Distinct des personas. Cette matrice est la base du modèle d'autorisation et de
 - **F6a — Vue analytics établissement (admin pédagogique)** : agrégé école / classe ; lacunes agrégées ; outcomes.
 - **F6b — Vue classe actionnable (enseignant)** : lacunes prioritaires de sa classe, zéro correction manuelle, pilotage de la remédiation.
 - **F7 — Boucle de remédiation** : exercice ciblé généré post-mesure sur la compétence en lacune ; déclenchable/visible par l'enseignant (pas seulement automatique).
-- **F8 — RBAC + SSO + provisioning** : 6 rôles (super admin, admin IT, admin pédagogique, enseignant, parent, élève). Gate d'achat — livré « suffisant pour signer », non sur-investi.
+- **F8 — RBAC + SSO + provisioning** : 6 rôles tenant (super admin, admin IT, admin pédagogique, enseignant, parent, élève) + 2 rôles de staff éditeur (linguiste, content reviewer). Gate d'achat — livré « suffisant pour signer », non sur-investi.
 
 ### Out of scope (V1 → renvois)
 - Mapping multi-curriculum à l'achat (Common Core / National Curriculum / MoE) → **Phase 2**.

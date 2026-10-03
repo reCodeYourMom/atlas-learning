@@ -43,8 +43,11 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:?set in .env}
       DATABASE_URL: postgresql+psycopg://${APP_DB_USER:-atlas}:${APP_DB_PASSWORD}@app-db:5432/atlas
       WEB_BASE_URL: https://${DEMO_DOMAIN}
-      # Mot de passe partagé des 5 comptes de démo. Généré par deploy.sh, jamais versionné.
+      # Mot de passe partagé des comptes de démo. Généré par deploy.sh, jamais versionné.
       DEMO_LOGIN_PASSWORD: ${DEMO_LOGIN_PASSWORD:?set in .env}
+      # Session de 4 h (1 h en prod) : un rendez-vous de 90 min ne doit pas se terminer
+      # par une déconnexion en plein partage d'écran — le front n'a pas de refresh token.
+      AUTH_SESSION_TTL_S: ${AUTH_SESSION_TTL_S:-14400}
       # Au premier boot : référentiel + banque + arabe + activation + école de démo.
       # Sans effet si la base contient déjà l'école (voir entrypoint-demo.sh).
       DEMO_SEED_ON_BOOT: ${DEMO_SEED_ON_BOOT:-1}

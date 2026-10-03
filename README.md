@@ -18,7 +18,7 @@ The system is split into three independent layers:
 - **Causal diagnosis & remediation** — pinpoints the actual blocking prerequisite behind a weak skill, not just "needs practice."
 - **Item bank pipeline** — deterministic item generation with exact math validation, LLM-assisted difficulty calibration, an Arabic translation pipeline with automated fidelity gates, and a human review/quarantine workflow for anything that fails validation.
 - **Bilingual by design** — Arabic/English content and UI, native RTL layout, not a bolt-on translation layer.
-- **Role-based dashboards** — student, teacher (classroom gaps view), academic admin (school-wide report), parent, and IT admin, each scoped through server-verified RBAC (6 roles) with tenant isolation.
+- **Role-based dashboards** — student, teacher (classroom gaps view), academic admin (school-wide report), parent, and IT admin, each scoped through server-verified RBAC (6 tenant roles plus 2 global Atlas staff roles: linguist and content reviewer) with tenant isolation.
 - **Roster integrations** — Google Workspace / Classroom, OneRoster (API and CSV), and a generic directory sync, so schools don't have to hand-manage rosters.
 - **Multi-tenant foundation** — org → school → classroom → student hierarchy, append-only audit logging, and lifecycle management for student data (retention, deletion, holds).
 - **Auth** — direct accounts with MFA and OIDC SSO.
@@ -76,6 +76,6 @@ For a production-like Postgres setup, set `DATABASE_URL=postgresql+psycopg://…
 
 ## Status
 
-The full backlog behind this vertical is implemented and covered by tests (451 passing, 1 skipped). The engine, item bank, adaptive session flow, reporting/diagnosis, RBAC, and roster integrations all run end-to-end against a demo dataset. Current work is focused on frontend polish and pilot readiness (extending the item bank to more skills, real-cohort calibration).
+The full backlog behind this vertical is implemented and covered by tests (485 passing, 1 skipped). The engine, item bank, adaptive session flow, reporting/diagnosis, RBAC, and roster integrations all run end-to-end against a demo dataset. Current work is focused on frontend polish and pilot readiness (extending the item bank to more skills, real-cohort calibration).
 
 The architecture (pluggable subject difficulty, curriculum-agnostic competency graph) is designed to extend beyond fractions — see `02_technique/Architecture-Matiere-Pluggable.md`.

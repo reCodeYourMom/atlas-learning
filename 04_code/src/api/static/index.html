@@ -65,6 +65,19 @@ async function login() {
   });
   if (!r.ok) { setStatus("Sign-in échoué (" + (await r.json()).detail + ")"); return; }
   token = (await r.json()).token;
+  // Compte élève : son student_id est pré-rempli (plus d'UUID à coller). Un compte staff
+  // (prof, admin) doit saisir l'id d'un élève de son périmètre.
+  const me = await fetch("/me", { headers: authHeaders() });
+  if (me.ok) {
+    const m = await me.json();
+    if (m.own_student_id) {
+      document.getElementById("student").value = m.own_student_id;
+      setStatus("Connecté (élève) — student_id pré-rempli, clique « Start session ».");
+      return;
+    }
+    setStatus("Connecté (" + m.roles.join(", ") + ") — saisir le student_id d'un élève de ton périmètre.");
+    return;
+  }
   setStatus("Connecté.");
 }
 
@@ -78,11 +91,19 @@ function applyLang() {
 async function startSession() {
   if (!token) { setStatus("Connecte-toi d'abord."); return; }
   const student_id = document.getElementById("student").value.trim();
+  if (!/^[0-9a-f-]{32,36}$/i.test(student_id)) {
+    setStatus("student_id manquant ou invalide : connecte-toi avec un compte élève (student049@alnoor.demo) ou colle un UUID d'élève.");
+    return;
+  }
   const r = await fetch("/sessions", {
     method: "POST", headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ student_id })
+    body: JSON.stringify({ student_id, locale: lang() })
   });
-  if (!r.ok) { setStatus("Erreur session (" + (await r.json()).detail + ")"); return; }
+  if (!r.ok) {
+    const err = await r.json();
+    setStatus("Erreur session (" + (typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) + ")");
+    return;
+  }
   sessionId = (await r.json()).session_id;
   applyLang();
   nextItem();

@@ -105,3 +105,99 @@ if __name__ == "__main__":
         print(f"  PASS {fn.__name__}")
         passed += 1
     print(f"\n{passed}/{len(fns)} tests OK")
+
+
+# --- revue 2026-09-20 : le seed est un UPSERT, le statut vient du JSON ---
+
+def test_seed_propagates_corrections_after_expert_review():
+    # Le seed était insert-only : corriger un prior/label/poids après revue n'avait aucun
+    # effet. Désormais la correction est propagée et le poids d'arête est versionné.
+    s = _fresh_session()
+    data = load_referentiel()
+    seed(s, data)
+    code = data["nodes"][0]["code"]
+    data["nodes"][0]["difficulty_prior"] += 40
+    data["nodes"][0]["label_en"] = "Corrigé après double lecture"
+    src, tgt, etype, w = data["edges"][0]
+    data["edges"][0] = [src, tgt, etype, round(w - 0.05, 2)]
+    r = seed(s, data)
+    assert r["competencies_created"] == 0 and r["competencies_updated"] == 1
+    assert r["edges_created"] == 0 and r["edges_updated"] == 1
+    comp = s.execute(select(Competency).where(Competency.code == code)).scalar_one()
+    assert comp.label_en == "Corrigé après double lecture"
+    edge = s.execute(select(CompetencyPrerequisite)).scalars().first()
+    ids = {c.code: c.id for c in s.execute(select(Competency)).scalars()}
+    edge = s.get(CompetencyPrerequisite, (ids[src], ids[tgt]))
+    assert edge.weight_version == 2 and abs(edge.correlation_strength - (w - 0.05)) < 1e-9
+    # rejouer sans changement : rien ne bouge, la version reste à 2
+    r2 = seed(s, data)
+    assert r2["competencies_updated"] == 0 and r2["edges_updated"] == 0
+    assert s.get(CompetencyPrerequisite, (ids[src], ids[tgt])).weight_version == 2
+
+
+def test_seed_never_activates_without_declaration():
+    # Un référentiel sans `meta.status: active` (ex. brouillon décimaux) est seedé en DRAFT :
+    # aucun nœud ne passe `active` sans passer par le gate A1.8.
+    from src.models.base import CompetencyStatus
+    s = _fresh_session()
+    data = load_referentiel()
+    draft = {"nodes": data["nodes"], "edges": data["edges"]}   # pas de meta
+    seed(s, draft)
+    statuses = {c.status for c in s.execute(select(Competency)).scalars()}
+    assert statuses == {CompetencyStatus.DRAFT}
+    # …et le fichier fractions, lui, déclare `active` : le seed l'écrit (et ne rétrograde jamais)
+    r = seed(s, data)
+    assert r["competencies_activated"] == len(data["nodes"])
+    statuses = {c.status for c in s.execute(select(Competency)).scalars()}
+    assert statuses == {CompetencyStatus.ACTIVE}
+    seed(s, draft)   # re-seeder le brouillon ne rétrograde pas
+    assert {c.status for c in s.execute(select(Competency)).scalars()} == {CompetencyStatus.ACTIVE}
+
+
+def test_seed_rejects_weight_out_of_bounds():
+    data = load_referentiel()
+    bad = {"nodes": data["nodes"],
+           "edges": data["edges"] + [["MATH.G2.NS.EQUAL_SHARES", "MATH.G5.NF.ADD_MIXED", "HARD", 0.5]]}
+    try:
+        validate_referentiel(bad, quiet=True)
+        assert False, "HARD 0.5 est sous le plancher méthodologique (E4)"
+    except SeedValidationError as exc:
+        assert "E-WEIGHT" in str(exc)
+
+
+def test_both_json_copies_are_identical():
+    # 03_referentiel/ (lu par les humains) et 04_code/data/ (lu par le code) : aucun test
+    # ne vérifiait l'égalité → drift silencieux garanti à la première correction.
+    import json
+    root = Path(__file__).resolve().parents[2]
+    a = json.loads((root / "03_referentiel" / "referentiel_fractions.json").read_text(encoding="utf-8"))
+    b = json.loads((root / "04_code" / "data" / "referentiel_fractions.json").read_text(encoding="utf-8"))
+    assert a == b
+
+
+def test_decimals_draft_passes_structural_checks_with_fractions():
+    # Le brouillon décimaux a 5 ponts vers les fractions : validé sur le graphe COMBINÉ.
+    import json
+    from src.graph.validator import check_referentiel, has_cycle
+    root = Path(__file__).resolve().parents[2]
+    fr = load_referentiel()
+    dec = json.loads((root / "03_referentiel" / "referentiel_decimals_draft.json").read_text(encoding="utf-8"))
+    rep = check_referentiel(dec, external_codes={n["code"] for n in fr["nodes"]})
+    assert rep.ok, rep.errors
+    assert rep.stats["n_bridges"] == 5 and rep.stats["density_intra"] == 1.5
+    assert not has_cycle(fr["edges"] + dec["edges"])
+    # le brouillon n'est PAS déclaré actif : le seeder le laisserait en draft
+    assert (dec.get("meta") or {}).get("status", "draft") == "draft"
+
+
+def test_check_referentiel_reports_fractions_known_exceptions():
+    # Les écarts méthodologiques connus du référentiel fractions sont des AVERTISSEMENTS
+    # (à documenter dans le dossier de revue), pas des erreurs — dont l'arête inversée en
+    # grade IMPROPER_TO_MIXED → ADD_SAME_IMPROPER (Methodologie-Referentiel, exception E4).
+    from src.graph.validator import check_referentiel
+    rep = check_referentiel(load_referentiel())
+    assert rep.ok
+    assert any("IMPROPER_TO_MIXED" in w and "W-PRIOR-MONOTONIC" in w for w in rep.warnings)
+    assert rep.stats["density_intra"] == 1.438
+    assert len(rep.stats["longest_hard_chain"]) == 11
+    assert rep.stats["cognitive"] == {"RECALL": 2, "APPLY": 18, "REASON": 12}

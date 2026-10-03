@@ -125,7 +125,7 @@ nécessite une instance de démo avec `PROVISION_ON_BOOT=1`, cf. §3) :
 |---|---|
 | M01 digest hebdo | `prof@` → `/teacher/<classroom>` (bannière « Cette semaine » + lacune émergente) |
 | M01 action 10 min | `parent@` → `/parent/<child>` (carte maison, sans score) + bloc anti-compulsion |
-| M02 console arabe | `admin@` → `/admin/<school>/arabic` (couverture 6/9, 3 en attente → Proposer/Valider) |
+| M02 console arabe | `linguist@` → `/linguist` (file de validation AR : corriger → valider). L'admin d'école ne lit que la couverture (`GET /admin/arabic/coverage`) : proposer/valider l'arabe est un acte de staff Atlas, jamais d'un client. |
 | M03 surfaces preuve | `admin@` → `/admin/<school>/report` (avant 33 % → après 67 %) |
 | M04 tuteur causal | `prof@` → fiche élève → « Pourquoi cet exercice ? » |
 

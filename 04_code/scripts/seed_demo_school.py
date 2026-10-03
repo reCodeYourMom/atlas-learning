@@ -53,7 +53,8 @@ from src.models.competency import Competency, CompetencyPrerequisite
 from src.models.item import Item
 from src.models.measurement import Response, School, Student, StudentCompetencyAbility
 from src.models.org import (
-    AppUser, Classroom, Membership, Organization, StudentClassroom, TeacherClassroom,
+    AppUser, Classroom, Membership, Organization, ParentStudent, StudentClassroom,
+    TeacherClassroom,
 )
 from src.models.session import AssessmentSession
 
@@ -62,6 +63,13 @@ ORG_NAME = "Al Noor Education Group"
 ORG_DOMAIN = "alnoor.demo"
 
 ADMIN_EMAIL = "director@alnoor.demo"
+# Les quatre autres personas, pour qu'AUCUN écran du produit ne soit inatteignable en démo
+# (revue 2026-09-20 : parent, IT admin et linguiste n'étaient pas semés, et les liens
+# magiques partent dans le vide sans SMTP — donc injoignables). Tous passent par
+# /demo/login avec le mot de passe partagé.
+IT_ADMIN_EMAIL = "it.admin@alnoor.demo"        # console IT (annuaire, sync, audit, export)
+PARENT_EMAIL = "parent@alnoor.demo"            # tuteur du 1er élève vitrine (lecture seule)
+LINGUIST_EMAIL = "linguist@alnoor.demo"        # staff Atlas global : file de validation AR
 TEACHERS = [
     ("teacher.a@alnoor.demo", "Ms. Huda Al Mansoori", "Grade 4 — A"),
     ("teacher.b@alnoor.demo", "Mr. Khalid Al Suwaidi", "Grade 4 — B"),
@@ -177,10 +185,30 @@ def _wipe(s) -> None:
         return
     schools = s.execute(select(School).where(School.organization_id == org.id)).scalars().all()
     school_ids = [sc.id for sc in schools]
+    parents_a_purger = set()
     if school_ids:
         student_ids = s.execute(
             select(Student.id).where(Student.school_id.in_(school_ids))
         ).scalars().all()
+        # Parents rattachés AD HOC pendant une démo (fiche élève → « ajouter un tuteur ») :
+        # leur email n'est pas du domaine de démo, mais leur seule raison d'exister est un
+        # élève qu'on efface. Sans ceci, ils survivaient au reset avec un Membership(PARENT)
+        # orphelin. Un parent qui a d'autres enfants ou d'autres rôles est conservé.
+        if student_ids:
+            parent_ids = set(s.execute(
+                select(ParentStudent.user_id).where(ParentStudent.student_id.in_(student_ids))
+            ).scalars())
+            s.execute(delete(ParentStudent).where(ParentStudent.student_id.in_(student_ids)))
+            for pid in parent_ids:
+                autres_enfants = s.execute(
+                    select(ParentStudent).where(ParentStudent.user_id == pid)
+                ).first()
+                autres_roles = s.execute(
+                    select(Membership).where(Membership.user_id == pid,
+                                             Membership.role != Role.PARENT)
+                ).first()
+                if autres_enfants is None and autres_roles is None:
+                    parents_a_purger.add(pid)
         if student_ids:
             s.execute(delete(Response).where(Response.student_id.in_(student_ids)))
             s.execute(delete(StudentCompetencyAbility)
@@ -199,8 +227,9 @@ def _wipe(s) -> None:
         s.execute(delete(Classroom).where(Classroom.school_id.in_(school_ids)))
         s.execute(delete(School).where(School.id.in_(school_ids)))
     users = s.execute(select(AppUser).where(AppUser.email.like(f"%@{ORG_DOMAIN}"))).scalars().all()
-    if users:
-        uids = [u.id for u in users]
+    uids = {u.id for u in users} | parents_a_purger
+    if uids:
+        uids = list(uids)
         s.execute(delete(Membership).where(Membership.user_id.in_(uids)))
         s.execute(delete(TeacherClassroom).where(TeacherClassroom.user_id.in_(uids)))
         s.execute(delete(AppUser).where(AppUser.id.in_(uids)))
@@ -256,6 +285,18 @@ def main() -> None:
         director = AppUser(email=ADMIN_EMAIL)
         s.add(director); s.flush()
         s.add(Membership(user_id=director.id, role=Role.PED_ADMIN, school_id=school.id))
+
+        # IT admin : membership porté par l'ORGANISATION (la console IT exige exactement
+        # un org_id résolu, cf. _require_it_admin_org) + l'école, pour voir ses classes.
+        it_admin = AppUser(email=IT_ADMIN_EMAIL)
+        s.add(it_admin); s.flush()
+        s.add(Membership(user_id=it_admin.id, role=Role.IT_ADMIN,
+                         organization_id=org.id, school_id=school.id))
+
+        # Linguiste : rôle GLOBAL, sans école (la banque n'est pas tenant-scopée).
+        linguist = AppUser(email=LINGUIST_EMAIL)
+        s.add(linguist); s.flush()
+        s.add(Membership(user_id=linguist.id, role=Role.LINGUIST))
 
         classes = {}
         for email, _name, class_name in TEACHERS:
@@ -342,6 +383,16 @@ def main() -> None:
                 eleves.append((st, latent, racine))
         s.commit()
         print(f"{len(eleves)} élèves créés sur {len(CLASS_PROFILES)} classes.")
+
+        # Parent de démo : rattaché au 1er élève vitrine, source "staff" (jamais
+        # auto-déclaré). Lecture seule : trajectoire de l'enfant, aucune session.
+        vitrine = next((st for st, _l, racine in eleves if racine), None)
+        if vitrine is not None:
+            parent = AppUser(email=PARENT_EMAIL)
+            s.add(parent); s.flush()
+            s.add(Membership(user_id=parent.id, role=Role.PARENT, organization_id=org.id))
+            s.add(ParentStudent(user_id=parent.id, student_id=vitrine.id, source="staff"))
+            s.commit()
 
         # --- 6 semaines de réponses, rejouées à travers le MOTEUR ---
         total = 0
@@ -471,6 +522,9 @@ def _rapport(s, school, classes, eleves, comps, total, args) -> None:
     if eleve_demo is not None:
         print(f"  5. Élève (session live)  {email_of.get(eleve_demo.user_id, '?')}"
               f"   [{eleve_demo.display_name}]")
+        print(f"  6. Parent (lecture seule) {PARENT_EMAIL}   [tuteur de {eleve_demo.display_name}]")
+    print(f"  7. IT admin (console IT)  {IT_ADMIN_EMAIL}")
+    print(f"  8. Linguiste (file AR)    {LINGUIST_EMAIL}")
     print("\n  Les 75 élèves : student001..student%03d@%s" % (len(eleves), ORG_DOMAIN))
 
 

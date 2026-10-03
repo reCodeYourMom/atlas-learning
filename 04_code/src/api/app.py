@@ -9,11 +9,12 @@ from __future__ import annotations
 import hmac
 import os
 import secrets
+import time
 import uuid
 from pathlib import Path
 from typing import Callable, List, Literal, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -82,7 +83,10 @@ from src.rbac.authz import (
     can_access_classroom,
     can_access_school,
     can_access_student,
+    can_act_for_student,
+    can_manage_student,
     can_review_arabic,
+    is_staff,
 )
 
 _engine = make_engine()
@@ -173,13 +177,43 @@ class DemoLoginIn(BaseModel):
     password: str
 
 
+# Anti-bruteforce du mot de passe partagé : N échecs par clé (IP, puis email) dans une
+# fenêtre glissante → 429. En mémoire de processus : suffisant pour la stack de démo
+# (un seul backend), volontairement sans dépendance. Un succès remet le compteur à zéro.
+DEMO_LOGIN_MAX_FAILURES = 10
+DEMO_LOGIN_WINDOW_S = 600
+_demo_login_failures: dict = {}
+
+
+def _demo_login_throttled(key: str, *, now: Optional[float] = None) -> bool:
+    now = now if now is not None else time.time()
+    hits = [t_ for t_ in _demo_login_failures.get(key, ()) if now - t_ < DEMO_LOGIN_WINDOW_S]
+    _demo_login_failures[key] = hits
+    return len(hits) >= DEMO_LOGIN_MAX_FAILURES
+
+
+def _demo_login_record_failure(key: str, *, now: Optional[float] = None) -> None:
+    now = now if now is not None else time.time()
+    _demo_login_failures.setdefault(key, []).append(now)
+
+
+def _demo_login_clear(key: str) -> None:
+    _demo_login_failures.pop(key, None)
+
+
 @app.post("/demo/login")
-def demo_login(body: DemoLoginIn, s: Session = Depends(get_db)):
+def demo_login(body: DemoLoginIn, request: Request, s: Session = Depends(get_db)):
     """Connexion de démonstration : email d'un compte de démo + mot de passe partagé."""
     expected = _demo_login_password()
     if expected is None:
         raise HTTPException(status_code=404, detail="indisponible")
     email = body.email.strip().lower()
+    client_ip = request.client.host if request.client else "?"
+    keys = (f"ip:{client_ip}", f"email:{email}")
+    if any(_demo_login_throttled(k) for k in keys):
+        log_action(s, action="auth.demo_login_throttled", details={"email": email, "ip": client_ip})
+        s.commit()
+        raise HTTPException(status_code=429, detail="trop de tentatives, réessayer plus tard")
     user = s.execute(
         select(AppUser).where(AppUser.email == email, AppUser.deleted_at.is_(None))
     ).scalar_one_or_none()
@@ -187,9 +221,13 @@ def demo_login(body: DemoLoginIn, s: Session = Depends(get_db)):
     ok = hmac.compare_digest(body.password or "", expected)
     if user is None or not user.is_active or not ok:
         # Message unique : ne dit jamais si c'est l'email ou le mot de passe qui est faux.
-        log_action(s, action="auth.demo_login_failed", details={"email": email})
+        for k in keys:
+            _demo_login_record_failure(k)
+        log_action(s, action="auth.demo_login_failed", details={"email": email, "ip": client_ip})
         s.commit()
         raise HTTPException(status_code=401, detail="identifiants invalides")
+    for k in keys:
+        _demo_login_clear(k)
     log_action(s, action="auth.demo_login", user_id=user.id)
     s.commit()
     return {"token": make_token(str(user.id)), "user_id": str(user.id)}
@@ -929,7 +967,7 @@ def admin_parents_invite(ctx: UserContext = Depends(get_context), s: Session = D
 
 @app.get("/parent/children")
 def parent_children(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
-    """Enfants du parent connecté (étiquette = email scolaire ; on ne stocke pas de nom)."""
+    """Enfants du parent connecté (étiquette = nom affiché, sinon email scolaire, sinon réf.)."""
     if Role.PARENT not in ctx.roles:
         raise HTTPException(status_code=403, detail="réservé aux parents")
     out = []
@@ -945,6 +983,9 @@ def parent_children(ctx: UserContext = Depends(get_context), s: Session = Depend
             child = s.get(AppUser, st.user_id)
             if child is not None:
                 label = child.email
+        # `display_name` (migration 0021) : un parent lit le nom de son enfant, pas un login.
+        if getattr(st, "display_name", None):
+            label = st.display_name
         out.append({"student_id": str(sid), "label": label})
     return {"children": out}
 
@@ -960,7 +1001,7 @@ class GuardianIn(BaseModel):
 def list_guardians(student_id: uuid.UUID, ctx: UserContext = Depends(get_context),
                    s: Session = Depends(get_db)):
     """Tuteurs d'un élève (prof/admin de l'élève)."""
-    _authorize_student(ctx, s, student_id)
+    _authorize_student(ctx, s, student_id, mode="manage")
     rows = s.execute(
         select(AppUser, ParentStudent.source)
         .join(ParentStudent, ParentStudent.user_id == AppUser.id)
@@ -978,7 +1019,7 @@ def add_guardian(student_id: uuid.UUID, body: GuardianIn,
                  ctx: UserContext = Depends(get_context), s: Session = Depends(get_db),
                  sender=Depends(get_email_sender)):
     """Rattache un email parent à l'élève — c'est le STAFF qui établit la confiance. Audité."""
-    st = _authorize_student(ctx, s, student_id)   # 403/404 si pas le droit sur cet élève
+    st = _authorize_student(ctx, s, student_id, mode="manage")   # staff seulement
     email = body.email.strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="email requis")
@@ -1006,7 +1047,7 @@ def add_guardian(student_id: uuid.UUID, body: GuardianIn,
 def remove_guardian(student_id: uuid.UUID, user_id: uuid.UUID,
                     ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     """Retire un lien tuteur (prof/admin de l'élève). Audité."""
-    st = _authorize_student(ctx, s, student_id)
+    st = _authorize_student(ctx, s, student_id, mode="manage")
     ps = s.get(ParentStudent, (user_id, st.id))
     if ps is None:
         raise HTTPException(status_code=404, detail="lien introuvable")
@@ -1080,7 +1121,16 @@ def me(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     }
 
 
-def _authorize_student(ctx: UserContext, s: Session, student_id: uuid.UUID) -> Student:
+def _authorize_student(ctx: UserContext, s: Session, student_id: uuid.UUID,
+                       *, mode: str = "read") -> Student:
+    """Résout l'élève et vérifie le droit de l'appelant.
+
+    mode="read"   : voir (profil, trajectoire, tuteur) — staff, parent, élève lui-même.
+    mode="act"    : mesurer (ouvrir une session, répondre) — staff ou élève lui-même.
+                    JAMAIS le parent : il est lecture seule (PRD), un lien parent→enfant
+                    ne doit pas permettre de déplacer l'Elo de l'enfant.
+    mode="manage" : administrer (tuteurs légaux…) — staff uniquement.
+    """
     # Soft delete filtré (revue sécurité) : un élève supprimé — ou dont l'école est
     # supprimée — n'est plus accessible par AUCUN endpoint (sessions, vues, parent).
     st = s.execute(active(Student).where(Student.id == student_id)).scalar_one_or_none()
@@ -1094,7 +1144,13 @@ def _authorize_student(ctx: UserContext, s: Session, student_id: uuid.UUID) -> S
     ).scalars())
     if st.classroom_id:
         class_ids.add(st.classroom_id)
-    if not can_access_student(ctx, st.id, st.school_id, class_ids):
+    if mode == "act":
+        allowed = can_act_for_student(ctx, st.id, st.school_id, class_ids)
+    elif mode == "manage":
+        allowed = can_manage_student(ctx, st.school_id, class_ids)
+    else:
+        allowed = can_access_student(ctx, st.id, st.school_id, class_ids)
+    if not allowed:
         raise HTTPException(status_code=403, detail="accès refusé à cet élève")
     return st
 
@@ -1142,7 +1198,7 @@ def _get_session(s: Session, session_id: uuid.UUID) -> AssessmentSession:
 @app.post("/sessions")
 def create_session(body: StartSessionIn, ctx: UserContext = Depends(get_context),
                    s: Session = Depends(get_db)):
-    st = _authorize_student(ctx, s, body.student_id)
+    st = _authorize_student(ctx, s, body.student_id, mode="act")
     sess = start_session(s, student_id=st.id, school_id=st.school_id,
                          target_competency_ids=body.target_competency_ids,
                          locale=body.locale)
@@ -1153,7 +1209,7 @@ def create_session(body: StartSessionIn, ctx: UserContext = Depends(get_context)
 def get_next_item(session_id: uuid.UUID, ctx: UserContext = Depends(get_context),
                   s: Session = Depends(get_db)):
     sess = _get_session(s, session_id)
-    _authorize_student(ctx, s, sess.student_id)
+    _authorize_student(ctx, s, sess.student_id, mode="act")
     return next_item(s, sess)
 
 
@@ -1161,7 +1217,7 @@ def get_next_item(session_id: uuid.UUID, ctx: UserContext = Depends(get_context)
 def post_response(session_id: uuid.UUID, body: ResponseIn,
                   ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     sess = _get_session(s, session_id)
-    _authorize_student(ctx, s, sess.student_id)
+    _authorize_student(ctx, s, sess.student_id, mode="act")
     item = s.get(Item, body.item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="item introuvable")
@@ -1267,7 +1323,13 @@ def post_remediation(body: RemediationIn, ctx: UserContext = Depends(get_context
 
 @app.get("/competencies")
 def get_competencies(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
-    """Graphe du référentiel (nœuds + arêtes) — support de la viz diagnostic."""
+    """Graphe du référentiel (nœuds + arêtes) — support de la viz diagnostic.
+
+    Réservé au STAFF : le référentiel (priors, poids d'arêtes) est un actif de l'éditeur ;
+    un élève ou un parent n'en a aucun usage et ne doit pas pouvoir l'exporter.
+    """
+    if not is_staff(ctx):
+        raise HTTPException(status_code=403, detail="rôle staff requis")
     return referentiel_graph(s)
 
 
@@ -1278,9 +1340,22 @@ def get_competencies(ctx: UserContext = Depends(get_context), s: Session = Depen
 # PROPOSE (Groq/ALLaM), le linguiste VALIDE — le gate ar_validated reste la seule porte d'entrée
 # au pool servi (cf. review.promote_to_active).
 
+def _require_arabic_reader(ctx: UserContext) -> None:
+    """Lecture de la couverture AR (surface de preuve) : admins d'école + staff Atlas."""
+    if not (can_review_arabic(ctx) or ctx.has(Role.PED_ADMIN, Role.IT_ADMIN)):
+        raise HTTPException(status_code=403, detail="rôle admin ou linguiste requis")
+
+
 def _require_linguist(ctx: UserContext) -> None:
-    if not ctx.has(Role.PED_ADMIN, Role.SUPER_ADMIN):
-        raise HTTPException(status_code=403, detail="rôle pédagogique requis (validation linguistique)")
+    """Écriture sur l'arabe de la banque (proposer / valider = franchir le gate G3).
+
+    Réservé au STAFF Atlas (linguist, super_admin) — jamais à un admin d'établissement
+    client : la validation linguistique est une responsabilité de l'éditeur, et c'est ce
+    que le claim « validé par une linguiste native » engage (Politique-Claims-Mesure).
+    Même politique que `require_linguist` (back-office /linguist/*).
+    """
+    if not can_review_arabic(ctx):
+        raise HTTPException(status_code=403, detail="rôle linguiste requis")
 
 
 def _ar_item_payload(it: Item) -> dict:
@@ -1300,7 +1375,7 @@ def _ar_item_payload(it: Item) -> dict:
 @app.get("/admin/arabic/coverage")
 def admin_arabic_coverage(ctx: UserContext = Depends(get_context), s: Session = Depends(get_db)):
     """Couverture arabe de la banque (preuve de la « descente » AR — prérequis KSA)."""
-    _require_linguist(ctx)
+    _require_arabic_reader(ctx)
     return ar_coverage(s)
 
 

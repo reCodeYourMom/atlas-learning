@@ -1,4 +1,9 @@
 {
+  "meta": {
+    "domain": "fractions",
+    "status": "active",
+    "note": "32 nœuds figés (Referentiel-Fractions.md), en usage en base. Le statut `active` est ce que le seed écrit : ne le poser sur un nouveau domaine qu'après le gate A1.8 (double lecture experte)."
+  },
   "nodes": [
     {
       "code": "MATH.G2.NS.EQUAL_SHARES",

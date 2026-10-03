@@ -1,7 +1,8 @@
 """Autorisation RBAC (Epic 6, T6.2). Logique PURE + résolveur DB.
 
-6 rôles (super_admin, it_admin, ped_admin, teacher, parent, student). Les permissions
-sont vérifiées ici (côté serveur), pas seulement masquées en UI. Isolation tenant :
+8 rôles (super_admin, it_admin, ped_admin, teacher, parent, student, plus deux rôles de
+staff Atlas GLOBAL : linguist, content_reviewer). Les permissions sont vérifiées ici (côté
+serveur), pas seulement masquées en UI. Isolation tenant :
 un acteur ne voit que son périmètre (école / classe / enfant / soi).
 """
 from __future__ import annotations
@@ -79,6 +80,44 @@ def can_access_student(ctx: UserContext, student_id, student_school_id,
     if Role.STUDENT in ctx.roles and student_id == ctx.own_student_id:
         return True
     return False
+
+
+def _is_staff_of_student(ctx: UserContext, student_school_id, student_classroom_ids) -> bool:
+    if is_super(ctx):
+        return True
+    if ctx.has(Role.IT_ADMIN, Role.PED_ADMIN) and student_school_id in ctx.school_ids:
+        return True
+    if Role.TEACHER in ctx.roles and ctx.classroom_ids & set(student_classroom_ids or ()):
+        return True
+    return False
+
+
+def can_act_for_student(ctx: UserContext, student_id, student_school_id,
+                        student_classroom_ids) -> bool:
+    """Droit d'ÉCRITURE sur la mesure d'un élève : ouvrir une session, répondre.
+
+    = `can_access_student` MOINS le parent. Le parent est LECTURE SEULE (PRD : « ne réalise
+    aucune activité ») ; un lien parent→enfant ne doit jamais permettre de répondre à la
+    place de l'enfant et donc de déplacer son Elo. Le staff (prof de la classe, admins de
+    l'école) garde le droit : c'est lui qui lance une session live en classe.
+    """
+    if _is_staff_of_student(ctx, student_school_id, student_classroom_ids):
+        return True
+    return Role.STUDENT in ctx.roles and student_id == ctx.own_student_id
+
+
+def can_manage_student(ctx: UserContext, student_school_id, student_classroom_ids) -> bool:
+    """Gestion administrative d'un élève (tuteurs légaux…) : STAFF uniquement.
+
+    Ni le parent (il ne s'auto-déclare pas, cf. ParentStudent), ni l'élève.
+    """
+    return _is_staff_of_student(ctx, student_school_id, student_classroom_ids)
+
+
+def is_staff(ctx: UserContext) -> bool:
+    """Tout rôle qui n'est ni élève ni parent : lit le référentiel, les vues agrégées."""
+    return ctx.has(Role.SUPER_ADMIN, Role.IT_ADMIN, Role.PED_ADMIN, Role.TEACHER,
+                   Role.LINGUIST, Role.CONTENT_REVIEWER)
 
 
 def build_user_context(session: Session, user_id: uuid.UUID) -> UserContext:

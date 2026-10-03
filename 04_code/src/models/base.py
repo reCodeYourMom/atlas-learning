@@ -128,6 +128,7 @@ class Role(str, enum.Enum):
     PARENT = "parent"             # lecture seule sur son enfant
     STUDENT = "student"           # ses propres activités
     LINGUIST = "linguist"         # staff Atlas GLOBAL : relit/valide l'arabe de la banque (pas tenant-scopé)
+    CONTENT_REVIEWER = "content_reviewer"  # staff Atlas GLOBAL : revue pédagogique EN + activation des items
 
 
 # --- Enums curriculum (Lot B, B2/B3 — DataModel §7 amendé D-B4) ---

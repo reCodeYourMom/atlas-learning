@@ -71,6 +71,18 @@ def _provision_tenant(s):
 
 
 def _activate_bank(s):
+    """Active la banque SANS humain — chemin de DÉMO/CI uniquement.
+
+    En production la chaîne approve → validate_arabic → promote_to_active est portée par
+    des comptes identifiés (scripts/review_items.py). Ici, un pseudo-reviewer
+    « demo-provision » — refusé en prod, et chaque activation laisse une entrée d'audit
+    marquée `automated` pour qu'on ne confonde jamais cette banque avec une banque revue.
+    """
+    import os
+    from src.audit import log_action
+    if os.environ.get("ATLAS_ENV", "dev").lower() in ("prod", "production"):
+        raise SystemExit("Activation automatique refusée en production : "
+                         "utiliser scripts/review_items.py activate --reviewer <email>.")
     items = s.execute(select(Item).where(Item.deleted_at.is_(None))).scalars().all()
     activated = skipped_active = skipped_no_ar = skipped_quarantined = 0
     for it in items:
@@ -86,7 +98,10 @@ def _activate_bank(s):
         approve(s, it, reviewer="demo-provision")
         validate_arabic(s, it, linguist="demo-provision")
         promote_to_active(s, it, reviewer="demo-provision")
+        log_action(s, action="item.activate", resource_type="item", resource_id=it.id,
+                   details={"actor": "demo-provision", "automated": True})
         activated += 1
+    s.commit()
     return activated, skipped_active, skipped_no_ar, skipped_quarantined
 
 

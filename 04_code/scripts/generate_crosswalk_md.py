@@ -27,7 +27,7 @@ from scripts.validate_crosswalk import (
 )
 
 OUT_PATH = (
-    Path(__file__).resolve().parents[2] / "03_referentiel"
+    Path(__file__).resolve().parents[1] / "data"
     / "Crosswalk-Curriculum-Fractions.generated.md"
 )
 
@@ -176,7 +176,7 @@ def generate(pivot: dict, referentiel_path: Path = REFERENTIEL_PATH) -> str:
         "",
         "## Provenance",
         "",
-        f"- **Source** : `03_referentiel/crosswalk_fractions_draft.json` (pivot {pivot['version']},"
+        f"- **Source** : `04_code/data/crosswalk_fractions_draft.json` (pivot {pivot['version']},"
         f" généré le {pivot['generated']}) — lui-même issu de {pivot['source']}.",
         "- **weight_source** : `expert` (crosswalk auteur, citant les frameworks publiés).",
         "- **Validation** : 0 erreur au validateur CI B6 (`scripts/validate_crosswalk.py`).",

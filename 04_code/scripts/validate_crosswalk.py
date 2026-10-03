@@ -31,7 +31,7 @@ from typing import Dict, List
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 PIVOT_PATH = (
-    Path(__file__).resolve().parents[2] / "03_referentiel" / "crosswalk_fractions_draft.json"
+    Path(__file__).resolve().parents[1] / "data" / "crosswalk_fractions_draft.json"
 )
 REFERENTIEL_PATH = Path(__file__).resolve().parents[1] / "data" / "referentiel_fractions.json"
 

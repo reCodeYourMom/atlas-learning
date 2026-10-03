@@ -68,7 +68,7 @@ def find_orphans(edges: list[tuple], all_codes: set) -> set:
 
 
 # ---------------------------------------------------------------------------
-# Contrôles méthodologiques A1.7 (03_referentiel/Methodologie-Referentiel.md)
+# Contrôles méthodologiques A1.7
 # ---------------------------------------------------------------------------
 #
 # Jusqu'ici documentés comme « scan automatique du JSON » mais calculés à la main et

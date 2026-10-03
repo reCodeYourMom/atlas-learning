@@ -122,6 +122,6 @@ Le framework MoE **ne publie pas de standards codés** : le mapping se fait au g
 
 ## Provenance
 
-- **Source** : `03_referentiel/crosswalk_fractions_draft.json` (pivot 0.2-reconciled, généré le 2026-07-11) — lui-même issu de Crosswalk-Curriculum-Fractions.md v1 (2026-06-23).
+- **Source** : `04_code/data/crosswalk_fractions_draft.json` (pivot 0.2-reconciled, généré le 2026-07-11) — lui-même issu de Crosswalk-Curriculum-Fractions.md v1 (2026-06-23).
 - **weight_source** : `expert` (crosswalk auteur, citant les frameworks publiés).
 - **Validation** : 0 erreur au validateur CI B6 (`scripts/validate_crosswalk.py`).

@@ -165,23 +165,13 @@ def test_seed_rejects_weight_out_of_bounds():
         assert "E-WEIGHT" in str(exc)
 
 
-def test_both_json_copies_are_identical():
-    # 03_referentiel/ (lu par les humains) et 04_code/data/ (lu par le code) : aucun test
-    # ne vérifiait l'égalité → drift silencieux garanti à la première correction.
-    import json
-    root = Path(__file__).resolve().parents[2]
-    a = json.loads((root / "03_referentiel" / "referentiel_fractions.json").read_text(encoding="utf-8"))
-    b = json.loads((root / "04_code" / "data" / "referentiel_fractions.json").read_text(encoding="utf-8"))
-    assert a == b
-
-
 def test_decimals_draft_passes_structural_checks_with_fractions():
     # Le brouillon décimaux a 5 ponts vers les fractions : validé sur le graphe COMBINÉ.
     import json
     from src.graph.validator import check_referentiel, has_cycle
-    root = Path(__file__).resolve().parents[2]
+    data = Path(__file__).resolve().parents[1] / "data"
     fr = load_referentiel()
-    dec = json.loads((root / "03_referentiel" / "referentiel_decimals_draft.json").read_text(encoding="utf-8"))
+    dec = json.loads((data / "referentiel_decimals_draft.json").read_text(encoding="utf-8"))
     rep = check_referentiel(dec, external_codes={n["code"] for n in fr["nodes"]})
     assert rep.ok, rep.errors
     assert rep.stats["n_bridges"] == 5 and rep.stats["density_intra"] == 1.5

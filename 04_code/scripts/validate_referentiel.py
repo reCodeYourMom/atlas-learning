@@ -1,6 +1,6 @@
 """Contrôles A1.7 d'un ou plusieurs référentiels — rejouables par un tiers, sans base.
 
-Jusqu'ici la méthodologie (03_referentiel/Methodologie-Referentiel.md) annonçait un « scan
+Jusqu'ici la méthodologie annonçait un « scan
 automatique du JSON », mais densité, chaîne HARD, monotonie des priors, bornes de poids et
 répartition cognitive étaient calculés à la main et recopiés dans les dossiers de revue.
 Ce script les calcule. Il est fait pour la CI et pour le dossier de revue A1.8.
@@ -8,7 +8,7 @@ Ce script les calcule. Il est fait pour la CI et pour le dossier de revue A1.8.
 Usage :
   python scripts/validate_referentiel.py                                  # fractions (défaut)
   python scripts/validate_referentiel.py --referentiel data/referentiel_fractions.json \\
-      --referentiel ../03_referentiel/referentiel_decimals_draft.json       # graphe combiné
+      --referentiel data/referentiel_decimals_draft.json       # graphe combiné
   python scripts/validate_referentiel.py --strict                          # avertissements = erreurs
   python scripts/validate_referentiel.py --json                            # sortie machine
 

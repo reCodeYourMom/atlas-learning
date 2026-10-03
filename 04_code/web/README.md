@@ -50,7 +50,7 @@ Les comptes du jeu de démo (`make demo-reset` dans `04_code/`) : `director@alno
 
 Le **parcours de démo P0** : vue classe → on clique un élève → diagnostic causal (« bloque sur X *parce que* Y ») → remédiation ciblée. C'est lui qui produit le « aha ».
 
-## Principes de design respectés (cf. `01_strategie/Brief-Product-Design.md`)
+## Principes de design respectés
 - **Diagnostic causal = héros** : chaîne racine → lacune, lue dans le sens de lecture (miroir RTL), doublée d'une phrase en langage naturel.
 - **Honnête sur l'incertitude** : mesuré vs estimé encodé visuellement (hachure + fourchette), jamais de faux score précis.
 - **Pas de rouge pour les lacunes** côté élève/parent : « prochaine étape » ambrée.

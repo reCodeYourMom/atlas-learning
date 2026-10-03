@@ -32,13 +32,7 @@ The system is split into three independent layers:
 
 ## Repository layout
 
-```
-01_strategie/    Product framing (problem, personas, product design brief)
-02_technique/    Technical design docs (data model, engine, pluggable-subject architecture)
-03_referentiel/  The fractions competency framework (32 skills, prerequisites, item contexts)
-04_code/         The application — see below
-05_revue/        Internal review/sign-off working docs
-```
+Everything lives in `04_code/`. Earlier strategy, technical-design, framework and review documents were removed from the tree on 2026-10-03 and remain in the git history.
 
 ### `04_code/` — the application
 
@@ -54,6 +48,7 @@ src/
   compliance/    Data retention & deletion lifecycle
   licensing/, onboarding/, notify/, llm/
   api/           FastAPI app
+data/            Competency framework (fractions, decimals draft) and curriculum crosswalk, as JSON
 scripts/         Seeding, bank generation/translation/validation, cohort simulation, ops CLIs
 web/             Next.js frontend (student / teacher / admin / parent / IT admin)
 deploy/          Production stack (Docker Compose, Keycloak, Terraform)
@@ -82,6 +77,6 @@ For a production-like Postgres setup, set `DATABASE_URL=postgresql+psycopg://…
 
 ## Status
 
-The full backlog behind this vertical is implemented and covered by tests (486 passing, 1 skipped). The engine, item bank, adaptive session flow, reporting/diagnosis, RBAC, and roster integrations all run end-to-end against a demo dataset. Current work is focused on frontend polish and pilot readiness (extending the item bank to more skills, real-cohort calibration).
+The full backlog behind this vertical is implemented and covered by tests (485 passing, 1 skipped). The engine, item bank, adaptive session flow, reporting/diagnosis, RBAC, and roster integrations all run end-to-end against a demo dataset. Current work is focused on frontend polish and pilot readiness (extending the item bank to more skills, real-cohort calibration).
 
-The architecture (pluggable subject difficulty, curriculum-agnostic competency graph) is designed to extend beyond fractions — see `02_technique/Architecture-Matiere-Pluggable.md`.
+The architecture (pluggable subject difficulty, curriculum-agnostic competency graph) is designed to extend beyond fractions.

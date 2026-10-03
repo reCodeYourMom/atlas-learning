@@ -59,7 +59,7 @@ jobs:
           python scripts/validate_referentiel.py --json > /dev/null
           python scripts/validate_referentiel.py \
             --referentiel data/referentiel_fractions.json \
-            --referentiel ../03_referentiel/referentiel_decimals_draft.json
+            --referentiel data/referentiel_decimals_draft.json
 
       - name: Crosswalk curriculum — règle B6 (toute compétence active mappée dans chaque framework)
         run: python scripts/validate_crosswalk.py --json > /dev/null

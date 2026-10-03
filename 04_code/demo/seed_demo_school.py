@@ -28,7 +28,7 @@ causal sont CALCULÉS. Ce qui s'affiche en démo est ce que le produit sait fair
 mise en scène — et si le moteur régresse, la démo le montre.
 
 Usage :
-    python scripts/seed_demo_school.py [--students 75] [--weeks 6] [--seed 20260906]
+    python demo/seed_demo_school.py [--students 75] [--weeks 6] [--seed 20260906]
 
 Pré-requis : alembic upgrade head · seed_referentiel · generate_bank_deterministic ·
 translate_bank_ar_deterministic · provision de la banque en `active`.

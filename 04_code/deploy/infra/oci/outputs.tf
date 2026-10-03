@@ -16,11 +16,11 @@ locals {
 
     3. Si repo_url était vide, déployer à la main :
          ssh ubuntu@${local._ip}
-         cd 04_code/deploy/demo && DEMO_DOMAIN=${var.demo_domain} ./deploy.sh
+         cd 04_code/demo/deploy && DEMO_DOMAIN=${var.demo_domain} ./deploy.sh
        (avec repo_url renseigné, cloud-init l'a déjà fait : voir ~/ATLAS-READY.txt)
 
     4. Le semis initial tourne au premier boot, ~40 s :
-         cd 04_code/deploy/demo && docker compose logs -f backend
+         cd 04_code/demo/deploy && docker compose logs -f backend
 
     5. https://${var.demo_domain} — deploy.sh affiche le mot de passe des 5 comptes.
        Remise à zéro entre deux rendez-vous : ./reset.sh

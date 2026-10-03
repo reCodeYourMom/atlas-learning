@@ -28,8 +28,8 @@ if [ "${DEMO_SEED_ON_BOOT:-1}" = "1" ] && ! deja_seede; then
   python scripts/seed_referentiel.py
   python scripts/generate_bank_deterministic.py
   python scripts/translate_bank_ar_deterministic.py
-  python scripts/provision_demo.py --bank-only
-  python scripts/seed_demo_school.py
+  python demo/provision_demo.py --bank-only
+  python demo/seed_demo_school.py
   echo "[demo] semis terminé."
 else
   echo "[demo] école de démo déjà présente — aucun semis."

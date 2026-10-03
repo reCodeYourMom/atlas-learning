@@ -6,15 +6,13 @@ Aucune donnée élève envoyée à un service externe.
 """
 from __future__ import annotations
 
-import hmac
 import os
 import secrets
-import time
 import uuid
 from pathlib import Path
 from typing import Callable, List, Literal, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -155,82 +153,16 @@ def _dev_login_enabled() -> bool:
 
 # ---------- connexion DÉMO (mot de passe partagé, hors production) ----------
 #
-# L'auth du produit est SSO uniquement (migration 0013_drop_direct_auth) : plus aucun mot
-# de passe en base, la MFA est portée par l'IdP. Excellent en production — impraticable
-# pour une démo commerciale, où il faut ouvrir cinq comptes en visio sans monter un
-# Keycloak et sans exposer un endpoint curl.
-#
-# D'où ce mode explicite : UN secret partagé, lu dans l'environnement (jamais en base,
-# jamais versionné), qui ouvre une session sur un compte EXISTANT du jeu de démo. Trois
-# verrous : `DEMO_LOGIN_PASSWORD` doit être posé, `ATLAS_ENV` ne doit pas être une prod,
-# et l'email doit déjà exister. Comparaison à temps constant, et journalisation de chaque
-# tentative — un mot de passe partagé reste un mot de passe.
+# Le code vit dans demo/login.py, hors du produit : l'image de production ne contient pas
+# le dossier demo/, la route /demo/login n'y existe donc pas.
 
-def _demo_login_password() -> Optional[str]:
-    is_prod = os.environ.get("ATLAS_ENV", "dev").lower() in ("prod", "production")
-    pwd = os.environ.get("DEMO_LOGIN_PASSWORD") or ""
-    return None if (is_prod or not pwd) else pwd
+try:
+    from demo import login as demo_login
+except ImportError:
+    demo_login = None
 
-
-class DemoLoginIn(BaseModel):
-    email: str
-    password: str
-
-
-# Anti-bruteforce du mot de passe partagé : N échecs par clé (IP, puis email) dans une
-# fenêtre glissante → 429. En mémoire de processus : suffisant pour la stack de démo
-# (un seul backend), volontairement sans dépendance. Un succès remet le compteur à zéro.
-DEMO_LOGIN_MAX_FAILURES = 10
-DEMO_LOGIN_WINDOW_S = 600
-_demo_login_failures: dict = {}
-
-
-def _demo_login_throttled(key: str, *, now: Optional[float] = None) -> bool:
-    now = now if now is not None else time.time()
-    hits = [t_ for t_ in _demo_login_failures.get(key, ()) if now - t_ < DEMO_LOGIN_WINDOW_S]
-    _demo_login_failures[key] = hits
-    return len(hits) >= DEMO_LOGIN_MAX_FAILURES
-
-
-def _demo_login_record_failure(key: str, *, now: Optional[float] = None) -> None:
-    now = now if now is not None else time.time()
-    _demo_login_failures.setdefault(key, []).append(now)
-
-
-def _demo_login_clear(key: str) -> None:
-    _demo_login_failures.pop(key, None)
-
-
-@app.post("/demo/login")
-def demo_login(body: DemoLoginIn, request: Request, s: Session = Depends(get_db)):
-    """Connexion de démonstration : email d'un compte de démo + mot de passe partagé."""
-    expected = _demo_login_password()
-    if expected is None:
-        raise HTTPException(status_code=404, detail="indisponible")
-    email = body.email.strip().lower()
-    client_ip = request.client.host if request.client else "?"
-    keys = (f"ip:{client_ip}", f"email:{email}")
-    if any(_demo_login_throttled(k) for k in keys):
-        log_action(s, action="auth.demo_login_throttled", details={"email": email, "ip": client_ip})
-        s.commit()
-        raise HTTPException(status_code=429, detail="trop de tentatives, réessayer plus tard")
-    user = s.execute(
-        select(AppUser).where(AppUser.email == email, AppUser.deleted_at.is_(None))
-    ).scalar_one_or_none()
-    # compare_digest : le temps de réponse ne doit pas dépendre du préfixe correct.
-    ok = hmac.compare_digest(body.password or "", expected)
-    if user is None or not user.is_active or not ok:
-        # Message unique : ne dit jamais si c'est l'email ou le mot de passe qui est faux.
-        for k in keys:
-            _demo_login_record_failure(k)
-        log_action(s, action="auth.demo_login_failed", details={"email": email, "ip": client_ip})
-        s.commit()
-        raise HTTPException(status_code=401, detail="identifiants invalides")
-    for k in keys:
-        _demo_login_clear(k)
-    log_action(s, action="auth.demo_login", user_id=user.id)
-    s.commit()
-    return {"token": make_token(str(user.id)), "user_id": str(user.id)}
+if demo_login is not None:
+    demo_login.install(app, get_db)
 
 
 class DevLoginIn(BaseModel):
@@ -277,7 +209,7 @@ def auth_providers():
     cette annonce, l'écran de connexion resterait vide quand aucun IdP n'est configuré.
     """
     return {"providers": oidc.enabled_providers(),
-            "demo_login": _demo_login_password() is not None}
+            "demo_login": demo_login is not None and demo_login.password() is not None}
 
 
 @app.get("/oauth/{provider_key}/start")

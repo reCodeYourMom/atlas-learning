@@ -86,7 +86,7 @@ gouvernance des facteurs, côté établissement.
     → `/linguist/login` ; bootstrap out-of-band par `scripts/onboard_linguist.py`.
 - **Dev/tests** sans IdP externe : simulateur SSO `/dev/login`, **fermé par défaut** et
   **en prod** (exige `OIDC_DEV_LOGIN=1` ET `ATLAS_ENV` non-prod). Aucune surface en production.
-- **Démo commerciale** (`deploy/demo/`, sans Keycloak) : `/demo/login`, **un** mot de passe
+- **Démo commerciale** (`demo/deploy/`, sans Keycloak) : `/demo/login`, **un** mot de passe
   partagé lu dans l'environnement (`DEMO_LOGIN_PASSWORD`), ouvrant une session sur un compte
   **existant** du jeu de démo. Trois verrous (secret posé, `ATLAS_ENV` non-prod, compte
   actif), comparaison à temps constant, message d'erreur unique, **10 échecs / 10 min par

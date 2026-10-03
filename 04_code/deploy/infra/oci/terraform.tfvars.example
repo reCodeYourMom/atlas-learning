@@ -22,7 +22,7 @@ boot_kms_key_ocid = ""                        # "ocid1.key.oc1.me-abudhabi-1.xxx
 # =====================================================================
 # Profil de déploiement
 # =====================================================================
-# "demo" → deploy/demo : UN sous-domaine, sans Keycloak, connexion par mot de passe
+# "demo" → demo/deploy : UN sous-domaine, sans Keycloak, connexion par mot de passe
 #          partagé. C'est la stack des rendez-vous écoles.
 # "prod" → deploy/prod : SSO Keycloak + TOTP, deux sous-domaines. Pour un vrai pilote.
 deploy_profile = "demo"

@@ -51,7 +51,7 @@ variable "ssh_ingress_cidr" {
 
 # --- Application -----------------------------------------------------
 # Deux profils de déploiement :
-#   "demo" (défaut) → deploy/demo : UN sous-domaine, sans Keycloak, connexion par mot de
+#   "demo" (défaut) → demo/deploy : UN sous-domaine, sans Keycloak, connexion par mot de
 #                     passe partagé. C'est la stack des rendez-vous commerciaux.
 #   "prod"          → deploy/prod : deux sous-domaines, SSO Keycloak + TOTP. Pour un pilote
 #                     avec de vraies données d'élèves.

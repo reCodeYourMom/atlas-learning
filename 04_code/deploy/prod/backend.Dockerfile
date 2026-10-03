@@ -35,3 +35,12 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
 
 # tini = init PID 1 (reaping correct des process). Entrypoint = migrations + uvicorn.
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint-backend.sh"]
+
+# Cible `demo` (demo/deploy/docker-compose.yml) : la même image + le dossier demo/ — semis de
+# l'école de démo et connexion par mot de passe partagé (/demo/login).
+FROM base AS demo
+COPY --chown=atlas:atlas demo ./demo
+
+# Cible par défaut (dernière étape) : l'image de production NE CONTIENT PAS demo/. La route
+# /demo/login n'y existe donc pas — elle n'est pas seulement désactivée.
+FROM base AS prod

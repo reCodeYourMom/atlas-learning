@@ -36,9 +36,11 @@ services:
     build:
       context: ../..
       dockerfile: deploy/prod/backend.Dockerfile
+      # Cible `demo` : l'image prod + le dossier demo/ (semis, /demo/login).
+      target: demo
     restart: unless-stopped
     environment:
-      # PAS "prod" : c'est ce qui autorise /demo/login. En prod l'endpoint répond 404.
+      # PAS "prod" : c'est ce qui autorise /demo/login (absent de l'image de production).
       ATLAS_ENV: demo
       AUTH_SECRET: ${AUTH_SECRET:?set in .env}
       DATABASE_URL: postgresql+psycopg://${APP_DB_USER:-atlas}:${APP_DB_PASSWORD}@app-db:5432/atlas

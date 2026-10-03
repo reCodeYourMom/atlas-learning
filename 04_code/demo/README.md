@@ -1,5 +1,19 @@
 # Démo sur `demo.atlaslearning.ae`
 
+Ce dossier contient **tout ce qui n'existe que pour la démo commerciale**. Le produit
+(`src/`, `scripts/`, `web/`, `deploy/prod/`) n'en dépend pas, et l'image de production ne
+le contient pas.
+
+| Fichier | Rôle |
+|---|---|
+| `seed_demo_school.py` | L'école de démo : 3 classes, 75 élèves, 6 semaines d'historique rejouées à travers le moteur |
+| `provision_demo.py` | Active la banque d'items (`--bank-only`) ; sans option, crée un petit tenant de test |
+| `login.py` | `POST /demo/login` — connexion par mot de passe partagé, branchée par l'API si ce dossier est présent |
+| `deploy/` | La stack Docker de démo (un sous-domaine, sans Keycloak) |
+
+En local : `make demo-reset` depuis `04_code/`. Le reste de ce document décrit la mise en
+ligne.
+
 Stack minimale pour les rendez-vous écoles : Caddy (TLS auto) → Next.js + FastAPI →
 Postgres. **Ni Keycloak ni sa base** — la démo se connecte par mot de passe partagé, le SSO
 réel étant hors périmètre.
@@ -37,7 +51,7 @@ dig +short demo.atlaslearning.ae      # doit renvoyer l'IP de la VM
 
 ## 2. La VM — Oracle Cloud, région Émirats
 
-`deploy/infra/oci/` provisionne tout (VM + réseau + déploiement) sur l'Always Free d'Oracle
+`04_code/deploy/infra/oci/` provisionne tout (VM + réseau + déploiement) sur l'Always Free d'Oracle
 en région Émirats. Gratuit à vie, et **les données restent dans le Golfe** — ce qui se dit
 en rendez-vous.
 
@@ -53,7 +67,7 @@ en rendez-vous.
 Puis :
 
 ```bash
-cd deploy/infra/oci
+cd 04_code/deploy/infra/oci
 cp terraform.tfvars.example terraform.tfvars   # renseigner les OCIDs, deploy_profile="demo"
 terraform init && terraform apply
 terraform output next_steps                    # l'IP et l'enregistrement DNS exact
@@ -76,7 +90,7 @@ sudo usermod -aG docker $USER && exec su -l $USER
 ## 3. Déploiement
 
 ```bash
-git clone <repo> && cd atlas-learning/04_code/deploy/demo
+git clone <repo> && cd atlas-learning/04_code/demo/deploy
 DEMO_DOMAIN=demo.atlaslearning.ae ./deploy.sh
 ```
 
@@ -92,7 +106,7 @@ docker compose logs -f backend     # suivre le semis
 ## 4. Entre deux rendez-vous
 
 ```bash
-cd deploy/demo && ./reset.sh
+cd 04_code/demo/deploy && ./reset.sh
 ```
 
 Reconstruit l'école — élèves, réponses, mesures, diagnostics — en ~35 s. Le référentiel et
@@ -126,5 +140,5 @@ l'IP et l'email dix minutes (429) — le mot de passe est partagé, pas public.
 
 Elle n'est **pas** destinée à des données d'élèves réelles. `ATLAS_ENV=demo` ouvre la
 connexion par mot de passe partagé&nbsp;; `ATLAS_ENV=prod` la referme (l'endpoint répond
-404). Pour un vrai pilote, c'est `deploy/prod/` qu'il faut déployer : SSO Keycloak, TOTP,
+404), et l'image de production n'embarque pas ce dossier : la route n'y existe pas. Pour un vrai pilote, c'est `deploy/prod/` qu'il faut déployer : SSO Keycloak, TOTP,
 rétention, audit.

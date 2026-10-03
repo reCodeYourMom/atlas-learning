@@ -2,7 +2,7 @@
 # Atlas — bootstrap VM Ubuntu : Docker + (option) clone du repo + deploy.sh.
 #
 # Deux profils, choisis par la variable Terraform `deploy_profile` :
-#   demo → deploy/demo (un sous-domaine, sans Keycloak) — les rendez-vous commerciaux
+#   demo → demo/deploy (un sous-domaine, sans Keycloak) — les rendez-vous commerciaux
 #   prod → deploy/prod (SSO Keycloak + TOTP)            — un pilote avec de vraies données
 package_update: true
 package_upgrade: false
@@ -35,7 +35,7 @@ runcmd:
       git clone "$REPO_URL" repo || true
       chown -R ubuntu:ubuntu /home/ubuntu/repo
       # Chemin du profil (compatible repo à la racine ou sous 04_code/).
-      SOUS_DOSSIER="deploy/$DEPLOY_PROFILE"
+      if [ "$DEPLOY_PROFILE" = "demo" ]; then SOUS_DOSSIER="demo/deploy"; else SOUS_DOSSIER="deploy/prod"; fi
       D=$(find /home/ubuntu/repo -type d -path "*$SOUS_DOSSIER" | head -n1)
       if [ -n "$D" ]; then
         if [ "$DEPLOY_PROFILE" = "demo" ]; then
@@ -55,9 +55,9 @@ runcmd:
     {
       echo "[atlas] cloud-init terminé — profil : $DEPLOY_PROFILE"
       if [ -z "$REPO_URL" ]; then
-        echo "Pas de repo_url : copie 04_code/ en scp, puis lance deploy/$DEPLOY_PROFILE/deploy.sh"
+        echo "Pas de repo_url : copie 04_code/ en scp, puis lance deploy.sh depuis demo/deploy (démo) ou deploy/prod (prod)"
       else
-        echo "Suivre le semis initial : cd repo/*/deploy/$DEPLOY_PROFILE && docker compose logs -f backend"
+        echo "Suivre le boot : docker compose logs -f backend, depuis repo/*/demo/deploy (démo) ou repo/*/deploy/prod (prod)"
       fi
     } > /home/ubuntu/ATLAS-READY.txt
     chown ubuntu:ubuntu /home/ubuntu/ATLAS-READY.txt

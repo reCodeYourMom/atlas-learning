@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from demo import login as demo_login
 from src.api import app as app_module
 from src.api.app import app, get_db
 from src.models import competency, item, measurement, org, session as _se, audit  # noqa: F401
@@ -36,10 +37,10 @@ def client(monkeypatch):
     app.dependency_overrides[get_db] = lambda: Session(bind=engine)
     monkeypatch.setenv("ATLAS_ENV", "demo")
     monkeypatch.setenv("DEMO_LOGIN_PASSWORD", "Atlas-secret")
-    app_module._demo_login_failures.clear()
+    demo_login._failures.clear()
     yield TestClient(app), engine
     app.dependency_overrides.clear()
-    app_module._demo_login_failures.clear()
+    demo_login._failures.clear()
 
 
 def _login(c, email, pwd="Atlas-secret"):
@@ -78,9 +79,16 @@ def test_closed_in_prod_and_without_secret(client, monkeypatch):
     assert c.get("/auth/providers").json()["demo_login"] is False
 
 
+def test_not_announced_when_demo_package_is_absent(client, monkeypatch):
+    # Image de production : demo/ n'est pas copié, l'import échoue et l'API tourne sans.
+    c, _ = client
+    monkeypatch.setattr(app_module, "demo_login", None)
+    assert c.get("/auth/providers").json()["demo_login"] is False
+
+
 def test_bruteforce_is_throttled(client):
     c, engine = client
-    for _ in range(app_module.DEMO_LOGIN_MAX_FAILURES):
+    for _ in range(demo_login.MAX_FAILURES):
         assert _login(c, "director@alnoor.demo", "wrong").status_code == 401
     # 11e tentative : refusée AVANT toute comparaison, même avec le bon mot de passe
     r = _login(c, "director@alnoor.demo")
@@ -90,8 +98,8 @@ def test_bruteforce_is_throttled(client):
     assert "auth.demo_login_throttled" in actions
     # la fenêtre expirée libère l'accès
     now = 10_000_000.0
-    for k in list(app_module._demo_login_failures):
-        app_module._demo_login_failures[k] = [now - app_module.DEMO_LOGIN_WINDOW_S - 1]
+    for k in list(demo_login._failures):
+        demo_login._failures[k] = [now - demo_login.WINDOW_S - 1]
     assert _login(c, "director@alnoor.demo").status_code == 200
 
 

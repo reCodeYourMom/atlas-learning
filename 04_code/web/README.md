@@ -12,7 +12,7 @@ Front bilingue **AR / EN avec RTL natif** pour les 4 personas (élève, enseigna
 
 Backend (depuis `04_code/`) :
 ```bash
-export DATABASE_URL="sqlite:///$(pwd)/atlas_bank.db"   # base démo provisionnée
+export DATABASE_URL="sqlite:///$(pwd)/atlas_demo.db"   # base de démo (make demo-reset)
 .venv/bin/python -m uvicorn src.api.app:app --port 8000
 ```
 
@@ -28,11 +28,11 @@ Plus de mot de passe ni de MFA applicatifs (migration `0013_drop_direct_auth`, M
 l'IdP). En local, deux façons d'ouvrir une session sur un compte existant :
 
 - `OIDC_DEV_LOGIN=1` côté API → `POST /dev/login {"email": …}` (simulateur SSO, dev/tests) ;
-- `DEMO_LOGIN_PASSWORD=…` côté API → formulaire de la page `/login` (mode démo, 404 en prod).
+- `DEMO_LOGIN_PASSWORD=…` côté API → formulaire de la page `/login` (mode démo ; code dans `demo/login.py`, absent de l'image de production).
 
 Les comptes du jeu de démo (`make demo-reset` dans `04_code/`) : `director@alnoor.demo`,
 `teacher.{a,b,c}@alnoor.demo`, `student001..075@alnoor.demo`, `parent@alnoor.demo`,
-`it.admin@alnoor.demo`, `linguist@alnoor.demo` — voir `deploy/demo/README.md` §5.
+`it.admin@alnoor.demo`, `linguist@alnoor.demo` — voir `demo/README.md` §5.
 
 ## Écrans (10, par persona)
 | # | Écran | Route | Persona | Priorité |

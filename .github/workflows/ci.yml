@@ -85,8 +85,8 @@ jobs:
           python scripts/seed_referentiel.py
           python scripts/generate_bank_deterministic.py
           python scripts/translate_bank_ar_deterministic.py
-          python scripts/provision_demo.py --bank-only
-          python scripts/seed_demo_school.py --students 24 --weeks 2
+          python demo/provision_demo.py --bank-only
+          python demo/seed_demo_school.py --students 24 --weeks 2
           python scripts/replay_measures.py
 
   web:

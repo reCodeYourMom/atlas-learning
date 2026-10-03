@@ -21,7 +21,7 @@ The system is split into three independent layers:
 - **Role-based dashboards** — student, teacher (classroom gaps view), academic admin (school-wide report), parent, and IT admin, each scoped through server-verified RBAC (6 tenant roles plus 2 global Atlas staff roles: linguist and content reviewer) with tenant isolation.
 - **Roster integrations** — Google Workspace / Classroom, OneRoster (API and CSV), and a generic directory sync, so schools don't have to hand-manage rosters.
 - **Multi-tenant foundation** — org → school → classroom → student hierarchy, append-only audit logging, and lifecycle management for student data (retention, deletion, holds).
-- **Auth** — direct accounts with MFA and OIDC SSO.
+- **Auth** — OIDC SSO only (MFA is delegated to the identity provider), plus single-use magic links for parents and Atlas staff.
 
 ## Stack
 
@@ -49,15 +49,21 @@ src/
   engine/        Elo update + confidence + propagation, adaptive selection, stopping rules
   items/         Item generation, difficulty, Arabic pipeline, review/quarantine
   restitution/   Aggregation, scaling, causal diagnosis, remediation
-  rbac/          Auth (login/MFA/OIDC) and role-based authorization
+  rbac/          Auth (OIDC, magic links) and role-based authorization
   rostering/     Google/OneRoster/CSV directory sync
   compliance/    Data retention & deletion lifecycle
   licensing/, onboarding/, notify/, llm/
   api/           FastAPI app
-scripts/         Seeding, bank generation/translation/validation, cohort simulation, demo provisioning
+scripts/         Seeding, bank generation/translation/validation, cohort simulation, ops CLIs
 web/             Next.js frontend (student / teacher / admin / parent / IT admin)
+deploy/          Production stack (Docker Compose, Keycloak, Terraform)
+demo/            Everything that exists only for the sales demo — see below
 tests/           Test suite
 ```
+
+### App vs. demo
+
+The product and the sales demo share one codebase (`src/`, `web/`). What is demo-only lives in `04_code/demo/`: the demo school seed, bank activation, the shared-password login (`POST /demo/login`) and its own Docker stack (one subdomain, no Keycloak). The app never depends on that folder — the production image does not ship it, so the demo login route does not exist there. `make demo-reset` (from `04_code/`) rebuilds the demo dataset in under a minute; see `04_code/demo/README.md`.
 
 ## Running it locally
 
@@ -72,10 +78,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cd web && npm install && npm run dev           # frontend, on :3000
 ```
 
-For a production-like Postgres setup, set `DATABASE_URL=postgresql+psycopg://…` before running the same commands. See `04_code/deploy/` for a self-hosted Docker Compose stack.
+For a production-like Postgres setup, set `DATABASE_URL=postgresql+psycopg://…` before running the same commands. See `04_code/deploy/prod/` for a self-hosted Docker Compose stack.
 
 ## Status
 
-The full backlog behind this vertical is implemented and covered by tests (485 passing, 1 skipped). The engine, item bank, adaptive session flow, reporting/diagnosis, RBAC, and roster integrations all run end-to-end against a demo dataset. Current work is focused on frontend polish and pilot readiness (extending the item bank to more skills, real-cohort calibration).
+The full backlog behind this vertical is implemented and covered by tests (486 passing, 1 skipped). The engine, item bank, adaptive session flow, reporting/diagnosis, RBAC, and roster integrations all run end-to-end against a demo dataset. Current work is focused on frontend polish and pilot readiness (extending the item bank to more skills, real-cohort calibration).
 
 The architecture (pluggable subject difficulty, curriculum-agnostic competency graph) is designed to extend beyond fractions — see `02_technique/Architecture-Matiere-Pluggable.md`.

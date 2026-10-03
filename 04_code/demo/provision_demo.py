@@ -9,7 +9,7 @@ ouvre une session via le simulateur SSO de dev : poser `OIDC_DEV_LOGIN=1` (et `A
 non-prod), puis `POST /dev/login {"email": "..."}`. En prod, ces comptes se connectent
 via l'IdP de l'établissement (leur email doit exister côté annuaire/rostering).
 
-Usage : DATABASE_URL=... python scripts/provision_demo.py
+Usage : DATABASE_URL=... python demo/provision_demo.py
 Pré-requis : alembic upgrade head + banque seedée + traduite AR (translate_bank_ar.py).
 """
 from __future__ import annotations

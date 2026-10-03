@@ -1,7 +1,7 @@
 # Atlas Learning — Brief de Product Design (MVP)
 
 **Version** : 1.0 · **Date** : 2026-06-20 · **Périmètre** : MVP vertical Fractions, marché GCC, SaaS B2B→B2G.
-**À lire avec** : `PRD-Atlas-Learning.md` (stratégie, personas, RBAC), `Design-Starter-Inventaire-Ecrans.md` (liste écrans), `DataModel-KnowledgeGraph.md` (formes de données).
+**À lire avec** : `PRD-Atlas-Learning.md` (stratégie, personas, RBAC), `DataModel-KnowledgeGraph.md` (formes de données).
 
 ---
 

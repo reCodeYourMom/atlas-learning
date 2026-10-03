@@ -25,11 +25,8 @@ export const DICT = {
   "login.title": { en: "Sign in to Atlas", ar: "تسجيل الدخول إلى أطلس" },
   "login.email": { en: "Email", ar: "البريد الإلكتروني" },
   "login.password": { en: "Password", ar: "كلمة المرور" },
-  "login.mfa": { en: "Authentication code (MFA)", ar: "رمز المصادقة (MFA)" },
-  "login.mfa.hint": { en: "Required for staff accounts", ar: "مطلوب لحسابات الطاقم" },
   "login.submit": { en: "Sign in", ar: "دخول" },
   "login.error": { en: "Invalid credentials.", ar: "بيانات الدخول غير صحيحة." },
-  "login.mfa.required": { en: "Enter your MFA code to continue.", ar: "أدخل رمز المصادقة للمتابعة." },
   "login.demo": { en: "Demo accounts", ar: "حسابات تجريبية" },
   "login.parent": { en: "Parent? Get a login link →", ar: "ولي أمر؟ احصل على رابط دخول ←" },
   "login.noprovider": {
@@ -75,17 +72,6 @@ export const DICT = {
   "login.sso.or": { en: "or", ar: "أو" },
   "login.sso.with": { en: "Continue with", ar: "المتابعة عبر" },
   "login.sso.error": { en: "Single sign-on failed. Try again or use your password.", ar: "فشل الدخول الموحّد. حاول مجددًا أو استخدم كلمة المرور." },
-
-  // — Enrôlement MFA (1er login staff) —
-  "mfa.setup.title": { en: "Set up two-factor authentication", ar: "إعداد المصادقة الثنائية" },
-  "mfa.setup.intro": {
-    en: "Scan this code with Google Authenticator or Authy, then enter the 6-digit code.",
-    ar: "امسح هذا الرمز عبر Google Authenticator أو Authy، ثم أدخل الرمز المكوّن من 6 أرقام.",
-  },
-  "mfa.setup.manual": { en: "Or enter this key manually:", ar: "أو أدخل هذا المفتاح يدويًا:" },
-  "mfa.setup.code": { en: "6-digit code", ar: "الرمز المكوّن من 6 أرقام" },
-  "mfa.setup.confirm": { en: "Activate", ar: "تفعيل" },
-  "mfa.setup.error": { en: "Invalid code, try again.", ar: "رمز غير صحيح، حاول مجددًا." },
 
   // — Common —
   "common.loading": { en: "Loading…", ar: "جارٍ التحميل…" },

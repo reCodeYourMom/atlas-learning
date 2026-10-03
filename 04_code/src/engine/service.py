@@ -10,7 +10,7 @@ import uuid
 from typing import Optional
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from src.engine.elo import Neighbor, confidence, propagate, update_elo
 from src.models.base import ResponseLanguage, utcnow

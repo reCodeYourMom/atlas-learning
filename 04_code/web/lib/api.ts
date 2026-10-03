@@ -46,7 +46,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string>),
   };
-  // Un Authorization explicite (ex. jeton d'enrôlement MFA) prime sur le token de session.
+  // Un Authorization explicite prime sur le token de session.
   if (token && !headers["Authorization"]) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`/api${path}`, { ...init, headers });

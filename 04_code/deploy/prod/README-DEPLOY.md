@@ -147,7 +147,7 @@ nécessite une instance de démo avec `PROVISION_ON_BOOT=1`, cf. §3) :
   `crontab -e` sur la VM et coller les lignes de chaque fichier (adapter le chemin du bundle).
 - **Logs** : `docker compose logs -f <service>`.
 - **Mise à jour** : `git pull && ./deploy.sh`.
-- **Sync nocturne rostering** (si Google branché plus tard) : cron `scripts/roster_sync.py` (cf. Runbook §6).
+- **Sync nocturne rostering** (si Google branché plus tard) : cron `scripts/roster_sync.py` (modèle : `roster_sync.cron`, cf. Runbook §6).
 
 ## 9. Gotchas
 

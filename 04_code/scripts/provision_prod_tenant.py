@@ -1,6 +1,6 @@
 """Provision PROD idempotent : tenant + comptes (alignés Keycloak) + données des 4 mouvements.
 
-Différences avec seed_demo_movements (qui recrée une SQLite locale) :
+Contrairement à un seed local (qui recrée une SQLite) :
   - utilise la base configurée (`DATABASE_URL`), schéma déjà migré par Alembic (pas de create_all) ;
   - idempotent : si admin@demo.atlas existe déjà, on ne refait rien ;
   - emails = ceux du realm Keycloak (admin@/prof@/parent@demo.atlas) → le login OIDC retrouve l'user.

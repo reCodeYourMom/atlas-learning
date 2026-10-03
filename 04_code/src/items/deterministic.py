@@ -368,7 +368,7 @@ def _sub_same_nosimp() -> List[dict]:
     for i, (a, c, d) in enumerate(data):
         s = a - c
         out.append(_mcq(f"What is {raw(a,d)} − {raw(c,d)}?", raw(s, d),
-                        [raw(s, 0 if False else d - 1), raw(a + c, d), raw(s, 2 * d)], i))
+                        [raw(s, d - 1), raw(a + c, d), raw(s, 2 * d)], i))
     return out
 
 

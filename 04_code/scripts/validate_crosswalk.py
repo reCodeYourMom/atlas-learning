@@ -56,10 +56,6 @@ MOE_KEY_RE = re.compile(r"^[A-Z_]+\.G\d(-G\d)?$")
 MOE_DOMAIN_KEYS = {"Numbers & Operations": "NUM_OPS"}
 
 
-class CrosswalkValidationError(Exception):
-    pass
-
-
 def load_pivot(path: Path = PIVOT_PATH) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 

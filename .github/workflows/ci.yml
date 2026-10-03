@@ -1,17 +1,10 @@
 name: CI
 
-# À la RACINE du dépôt (revue 2026-09-20) : GitHub Actions ne lit que <racine>/.github/workflows/.
-# Le fichier vivait dans 04_code/.github/ — cette CI ne s'était donc jamais déclenchée.
-
 on:
   push:
     branches: [main, demo-mvp]
   pull_request:
     branches: [main]
-
-defaults:
-  run:
-    working-directory: 04_code
 
 jobs:
   backend:
@@ -46,7 +39,7 @@ jobs:
         with:
           python-version: "3.9"
           cache: pip
-          cache-dependency-path: 04_code/requirements.txt
+          cache-dependency-path: requirements.txt
 
       - name: Dépendances
         run: |
@@ -94,14 +87,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: 04_code/web
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: 04_code/web/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - name: Dépendances
         run: npm ci
       - name: Typecheck

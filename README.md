@@ -26,54 +26,48 @@ The system is split into three independent layers:
 ## Stack
 
 - **Backend**: FastAPI, SQLAlchemy 2.0, Alembic. Postgres in production, SQLite for dev/CI.
-- **Frontend**: Next.js 14 (`04_code/web/`), TypeScript, Tailwind, Recharts.
+- **Frontend**: Next.js 14 (`web/`), TypeScript, Tailwind, Recharts.
 - **Deployment**: Docker Compose (Caddy for TLS, Keycloak for auth), with a Terraform module for cloud provisioning.
 - **CI**: GitHub Actions — full test suite against a real Postgres service, including a migration round-trip check (upgrade → downgrade → upgrade).
 
 ## Repository layout
 
-Everything lives in `04_code/`. Earlier strategy, technical-design, framework and review documents were removed from the tree on 2026-10-03 and remain in the git history.
-
-### `04_code/` — the application
-
 ```
-src/
-  models/        SQLAlchemy models (competency graph, items, measurement, sessions, tenants, audit)
-  graph/         DAG validation for the competency graph
-  engine/        Elo update + confidence + propagation, adaptive selection, stopping rules
-  items/         Item generation, difficulty, Arabic pipeline, review/quarantine
-  restitution/   Aggregation, scaling, causal diagnosis, remediation
-  rbac/          Auth (OIDC, magic links) and role-based authorization
-  rostering/     Google/OneRoster/CSV directory sync
-  compliance/    Data retention & deletion lifecycle
-  licensing/, onboarding/, notify/, llm/
-  api/           FastAPI app
-data/            Competency framework (fractions, decimals draft) and curriculum crosswalk, as JSON
-scripts/         Seeding, bank generation/translation/validation, cohort simulation, ops CLIs
-web/             Next.js frontend (student / teacher / admin / parent / IT admin)
-deploy/          Production stack (Docker Compose, Keycloak, Terraform)
-demo/            Everything that exists only for the sales demo — see below
+src/             The backend (FastAPI)
+  api/             HTTP endpoints, session and dashboard services
+  engine/          Elo update, confidence, propagation, adaptive selection, stopping rules
+  graph/           DAG validation for the competency graph
+  items/           Item generation, difficulty, Arabic pipeline, review/quarantine
+  restitution/     Aggregation, scaling, causal diagnosis, remediation
+  rbac/            Auth (OIDC, magic links) and role-based authorization
+  rostering/       Google / OneRoster / CSV directory sync
+  models/          SQLAlchemy models
+  compliance/ licensing/ onboarding/ notify/ llm/
+web/             The frontend (Next.js — student, teacher, admin, parent, IT admin)
+data/            Competency framework and curriculum crosswalk, as JSON
+alembic/         Database migrations
+scripts/         Seeding, bank generation/translation/validation, ops CLIs, pilot analyses
 tests/           Test suite
+deploy/          Production: Docker Compose + Keycloak (prod/), Terraform (infra/)
+demo/            Everything that exists only for the sales demo
 ```
 
 ### App vs. demo
 
-The product and the sales demo share one codebase (`src/`, `web/`). What is demo-only lives in `04_code/demo/`: the demo school seed, bank activation, the shared-password login (`POST /demo/login`) and its own Docker stack (one subdomain, no Keycloak). The app never depends on that folder — the production image does not ship it, so the demo login route does not exist there. `make demo-reset` (from `04_code/`) rebuilds the demo dataset in under a minute; see `04_code/demo/README.md`.
+The product and the sales demo share one codebase (`src/`, `web/`). What is demo-only lives in `demo/`: the demo school seed, bank activation, the shared-password login (`POST /demo/login`) and its own Docker stack (one subdomain, no Keycloak). The app never depends on that folder — the production image does not ship it, so the demo login route does not exist there. See `demo/README.md`.
 
 ## Running it locally
 
-From `04_code/`:
-
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/alembic upgrade head                 # creates schema (SQLite by default)
-.venv/bin/python scripts/seed_referentiel.py   # seeds the competency graph (idempotent)
-.venv/bin/python -m pytest -q                  # run the test suite
-.venv/bin/python -m uvicorn src.api.app:app --port 8000   # API
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
+make test                                      # run the test suite
+make demo-reset                                # build the demo dataset (SQLite, < 60 s, no API key)
+DATABASE_URL=sqlite:///$PWD/atlas_demo.db DEMO_LOGIN_PASSWORD=demo \
+  .venv/bin/python -m uvicorn src.api.app:app --port 8000   # API
 cd web && npm install && npm run dev           # frontend, on :3000
 ```
 
-For a production-like Postgres setup, set `DATABASE_URL=postgresql+psycopg://…` before running the same commands. See `04_code/deploy/prod/` for a self-hosted Docker Compose stack.
+For Postgres, set `DATABASE_URL=postgresql+psycopg://…` and run `.venv/bin/alembic upgrade head`. See `deploy/prod/` for the self-hosted production stack.
 
 ## Status
 

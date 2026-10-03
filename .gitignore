@@ -1,10 +1,9 @@
-# .gitignore racine (dépôt = atlas_dossier : docs + pivots + code).
-# 04_code/.gitignore reste en place pour son sous-arbre (redondance volontaire).
-
-# === Secrets — JAMAIS commités (les *.example / *.template restent versionnés) ===
+# === Secrets — jamais commités (les *.example / *.template restent versionnés) ===
 .env
 .env.local
 **/SECRETS.local.txt
+deploy/prod/keycloak/import/
+deploy/prod/backups/
 
 # === Python ===
 .venv/
@@ -19,12 +18,20 @@ __pycache__/
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 
-# === SQLite : DB = artefact regénérable (convention existante), jamais versionnée ===
+# === SQLite : base = artefact regénérable, jamais versionnée ===
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+
+# === Terraform (état + secrets API) ===
+deploy/infra/**/.terraform/
+deploy/infra/**/*.tfstate
+deploy/infra/**/*.tfstate.*
+deploy/infra/**/terraform.tfvars
+deploy/infra/**/.terraform.lock.hcl
 
 # === OS / éditeur ===
 .DS_Store

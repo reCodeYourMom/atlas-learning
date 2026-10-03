@@ -1,0 +1,62 @@
+#cloud-config
+# Atlas — bootstrap VM Ubuntu : Docker + (option) clone du repo + deploy.sh.
+#
+# Deux profils, choisis par la variable Terraform `deploy_profile` :
+#   demo → demo/deploy (un sous-domaine, sans Keycloak) — les rendez-vous commerciaux
+#   prod → deploy/prod (SSO Keycloak + TOTP)            — un pilote avec de vraies données
+package_update: true
+package_upgrade: false
+
+packages:
+  - ca-certificates
+  - curl
+  - git
+
+write_files:
+  - path: /etc/atlas.env
+    permissions: "0644"
+    content: |
+      DEPLOY_PROFILE=${deploy_profile}
+      DEMO_DOMAIN=${demo_domain}
+      APP_DOMAIN=${app_domain}
+      AUTH_DOMAIN=${auth_domain}
+      REPO_URL=${repo_url}
+
+runcmd:
+  # Docker Engine + plugin compose
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ubuntu
+  # Récupère le bundle si un repo est fourni, sinon laisse la place pour un scp.
+  - |
+    set -e
+    . /etc/atlas.env
+    if [ -n "$REPO_URL" ]; then
+      cd /home/ubuntu
+      git clone "$REPO_URL" repo || true
+      chown -R ubuntu:ubuntu /home/ubuntu/repo
+      if [ "$DEPLOY_PROFILE" = "demo" ]; then SOUS_DOSSIER="demo/deploy"; else SOUS_DOSSIER="deploy/prod"; fi
+      D=$(find /home/ubuntu/repo -type d -path "*$SOUS_DOSSIER" | head -n1)
+      if [ -n "$D" ]; then
+        if [ "$DEPLOY_PROFILE" = "demo" ]; then
+          sudo -u ubuntu env DEMO_DOMAIN="$DEMO_DOMAIN" bash -lc "cd '$D' && ./deploy.sh"
+        else
+          sudo -u ubuntu env APP_DOMAIN="$APP_DOMAIN" AUTH_DOMAIN="$AUTH_DOMAIN" \
+            bash -lc "cd '$D' && ./deploy.sh"
+        fi
+      else
+        echo "[atlas] dossier $SOUS_DOSSIER introuvable dans le repo cloné." \
+          > /home/ubuntu/ATLAS-ERREUR.txt
+        chown ubuntu:ubuntu /home/ubuntu/ATLAS-ERREUR.txt
+      fi
+    fi
+  - |
+    . /etc/atlas.env
+    {
+      echo "[atlas] cloud-init terminé — profil : $DEPLOY_PROFILE"
+      if [ -z "$REPO_URL" ]; then
+        echo "Pas de repo_url : copie le dépôt en scp, puis lance deploy.sh depuis demo/deploy (démo) ou deploy/prod (prod)"
+      else
+        echo "Suivre le boot : docker compose logs -f backend, depuis repo/*/demo/deploy (démo) ou repo/*/deploy/prod (prod)"
+      fi
+    } > /home/ubuntu/ATLAS-READY.txt
+    chown ubuntu:ubuntu /home/ubuntu/ATLAS-READY.txt

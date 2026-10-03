@@ -1,0 +1,35 @@
+# Caddy — TLS automatique (Let's Encrypt) pour la démo, sur UN seul sous-domaine.
+#
+# Le domaine racine (atlaslearning.ae) et son www restent chez Netlify : rien ici ne les
+# touche. Caddy ne demande de certificat que pour DEMO_DOMAIN.
+#
+# Front Next.js à la racine, backend FastAPI sous /api/* — même origine, donc pas de CORS
+# et le cookie/jeton de session ne traverse jamais de frontière.
+
+{$DEMO_DOMAIN} {
+	encode gzip
+
+	header {
+		# HSTS SANS includeSubDomains : la directive s'appliquerait à TOUT
+		# atlaslearning.ae depuis ce seul sous-domaine, y compris la landing Netlify.
+		# Sur une démo, on ne prend pas cet engagement pour le domaine entier.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		# Même CSP qu'en prod : 'unsafe-inline' reste requis par les scripts
+		# d'hydratation de Next.js. Aucune ressource externe — les polices sont
+		# auto-hébergées au build, tous les fetch sont same-origin.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	# /api/* → backend. handle_path RETIRE le préfixe : le backend voit /demo/login.
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

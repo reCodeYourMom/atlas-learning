@@ -1,0 +1,94 @@
+# =====================================================================
+# Atlas Learning — stack DÉMO COMMERCIALE (1 VM, un seul sous-domaine).
+#
+# Volontairement plus petite que deploy/prod : ni Keycloak ni sa base. La démo
+# s'authentifie par un mot de passe partagé (/demo/login), hors périmètre du SSO réel.
+# Deux services de moins = deux services qui ne peuvent pas tomber pendant un rendez-vous,
+# et ~1,5 Go de RAM libérés sur une petite VM.
+#
+#   cp .env.demo.example .env   (puis renseigner DEMO_DOMAIN)
+#   ./deploy.sh
+#
+# Cette stack n'est PAS destinée à recevoir des données d'élèves réels : ATLAS_ENV=demo
+# ouvre la connexion par mot de passe, que ATLAS_ENV=prod referme (404).
+# =====================================================================
+name: atlas-demo
+
+services:
+  app-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: atlas
+      POSTGRES_USER: ${APP_DB_USER:-atlas}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?set in .env}
+    volumes:
+      - demo_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER:-atlas} -d atlas"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    mem_limit: 1g
+    cpus: 1.0
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/prod/backend.Dockerfile
+      # Cible `demo` : l'image prod + le dossier demo/ (semis, /demo/login).
+      target: demo
+    restart: unless-stopped
+    environment:
+      # PAS "prod" : c'est ce qui autorise /demo/login (absent de l'image de production).
+      ATLAS_ENV: demo
+      AUTH_SECRET: ${AUTH_SECRET:?set in .env}
+      DATABASE_URL: postgresql+psycopg://${APP_DB_USER:-atlas}:${APP_DB_PASSWORD}@app-db:5432/atlas
+      WEB_BASE_URL: https://${DEMO_DOMAIN}
+      # Mot de passe partagé des comptes de démo. Généré par deploy.sh, jamais versionné.
+      DEMO_LOGIN_PASSWORD: ${DEMO_LOGIN_PASSWORD:?set in .env}
+      # Session de 4 h (1 h en prod) : un rendez-vous de 90 min ne doit pas se terminer
+      # par une déconnexion en plein partage d'écran — le front n'a pas de refresh token.
+      AUTH_SESSION_TTL_S: ${AUTH_SESSION_TTL_S:-14400}
+      # Au premier boot : référentiel + banque + arabe + activation + école de démo.
+      # Sans effet si la base contient déjà l'école (voir entrypoint-demo.sh).
+      DEMO_SEED_ON_BOOT: ${DEMO_SEED_ON_BOOT:-1}
+      # Aucune clé LLM : la banque et sa version arabe sont déterministes.
+    entrypoint: ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint-demo.sh"]
+    volumes:
+      - ./entrypoint-demo.sh:/usr/local/bin/entrypoint-demo.sh:ro
+    depends_on:
+      app-db:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.0
+
+  frontend:
+    build:
+      context: ../../web
+      dockerfile: ../deploy/prod/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    mem_limit: 512m
+    cpus: 0.5
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN:?set in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  demo_db:
+  caddy_data:
+  caddy_config:

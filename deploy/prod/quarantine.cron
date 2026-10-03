@@ -1,0 +1,11 @@
+# Atlas — quarantaine des items dérivants (03:40 UTC, quotidien).
+# Exécute scripts/run_quarantine.py DANS le conteneur backend (DATABASE_URL déjà posée) :
+#   --execute = quarantaine réelle (le script seul est un dry-run) ; chaque mise en
+#   quarantaine est journalisée dans AuditLog et RÉVERSIBLE (review.promote → active).
+#   La référence est l'ability MOYENNE réelle des répondants de chaque item — pas une
+#   constante — pour ne pas quarantainer à tort un item difficile servi à des forts.
+# Installer sur la VM :
+#   crontab -e
+# puis coller la ligne ci-dessous en adaptant le chemin absolu du bundle.
+
+40 3 * * * cd /home/ubuntu/atlas-learning/deploy/prod && /usr/bin/docker compose exec -T backend python scripts/run_quarantine.py --execute >> ./quarantine.log 2>&1
